@@ -1,3 +1,6 @@
+# built locally by Build-Launcher.ps1 / Lockdown.bat
+Lockdown.exe
+
 # Windows clutter
 Thumbs.db
 desktop.ini

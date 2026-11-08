@@ -1,18 +1,67 @@
-# Study Lock - closes distracting apps and blocks websites for the length of a study session.
+# Lockdown - closes distracting apps and blocks websites for the length of a study session.
 param([switch]$Startup)
 
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Windows.Forms, System.Drawing
 
+# Give Lockdown its own taskbar identity, so it isn't grouped under (or shown with the icon of) PowerShell.
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+[ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface ILockdownPropertyStore {
+    int GetCount(out uint count);
+    int GetAt(uint index, out LockdownPropertyKey key);
+    int GetValue(ref LockdownPropertyKey key, IntPtr value);
+    int SetValue(ref LockdownPropertyKey key, ref LockdownPropVariant value);
+    int Commit();
+}
+[StructLayout(LayoutKind.Sequential, Pack = 4)]
+public struct LockdownPropertyKey { public Guid fmtid; public uint pid; }
+[StructLayout(LayoutKind.Explicit, Size = 24)]
+public struct LockdownPropVariant { [FieldOffset(0)] public ushort vt; [FieldOffset(8)] public IntPtr p; }
+public static class LockdownShell {
+    [DllImport("shell32.dll")] public static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string id);
+    [DllImport("shell32.dll")] static extern int SHGetPropertyStoreForWindow(IntPtr hwnd, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out ILockdownPropertyStore store);
+    static readonly Guid AppModel = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3");
+    static void Set(ILockdownPropertyStore s, uint pid, string value) {
+        var k = new LockdownPropertyKey { fmtid = AppModel, pid = pid };
+        var v = new LockdownPropVariant { vt = 31, p = Marshal.StringToCoTaskMemUni(value) };   // VT_LPWSTR
+        try { s.SetValue(ref k, ref v); } finally { Marshal.FreeCoTaskMem(v.p); }
+    }
+    // App ID plus what "Pin to taskbar" should launch (the relaunch command, name and icon).
+    public static void SetWindowIdentity(IntPtr hwnd, string id, string command, string name, string icon) {
+        Guid iid = typeof(ILockdownPropertyStore).GUID;
+        ILockdownPropertyStore s;
+        if (SHGetPropertyStoreForWindow(hwnd, ref iid, out s) != 0 || s == null) return;
+        try {
+            Set(s, 5, id);
+            if (!string.IsNullOrEmpty(command)) { Set(s, 2, command); Set(s, 4, name); Set(s, 3, icon); }
+            s.Commit();
+        } finally { Marshal.ReleaseComObject(s); }
+    }
+}
+"@
+$AppId = 'Lockdown.App'
+[void][LockdownShell]::SetCurrentProcessExplicitAppUserModelID($AppId)
+
 # ---------- paths & single instance ----------
-$DataDir    = Join-Path $env:APPDATA 'StudyLock'
+$DataDir    = Join-Path $env:APPDATA 'Lockdown'
+$OldDataDir = Join-Path $env:APPDATA 'StudyLock'     # settings from before the rename
+if (-not (Test-Path (Join-Path $DataDir 'config.json')) -and (Test-Path (Join-Path $OldDataDir 'config.json'))) {
+    New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
+    Copy-Item (Join-Path $OldDataDir 'config.json') (Join-Path $DataDir 'config.json')
+}
 $ConfigPath = Join-Path $DataDir 'config.json'
-$StartupLnk = Join-Path ([Environment]::GetFolderPath('Startup')) 'Study Lock.lnk'
+$StartupLnk = Join-Path ([Environment]::GetFolderPath('Startup')) 'Lockdown.lnk'
+$AppDir      = Split-Path -Parent $PSCommandPath
+$LauncherExe = Join-Path $AppDir 'Lockdown.exe'
+$IconPath    = Join-Path $AppDir 'Lockdown.ico'
 New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
 
-$mutex = New-Object System.Threading.Mutex($false, 'Local\StudyLockSingleInstance')
+$mutex = New-Object System.Threading.Mutex($false, 'Local\LockdownSingleInstance')
 $owned = $false
 try { $owned = $mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $owned = $true }
-$showSignal = New-Object System.Threading.EventWaitHandle($false, [System.Threading.EventResetMode]::AutoReset, 'Local\StudyLockShowWindow')
+$showSignal = New-Object System.Threading.EventWaitHandle($false, [System.Threading.EventResetMode]::AutoReset, 'Local\LockdownShowWindow')
 if (-not $owned) {
     # Already running: ask that copy to show its window, then quit.
     if (-not $Startup) { [void]$showSignal.Set() }
@@ -78,7 +127,7 @@ $AppGlyphs = @{
 }
 
 # ---------- apps ----------
-# Apps that can never be locked (Windows itself, or the thing running Study Lock).
+# Apps that can never be locked (Windows itself, or the thing running Lockdown).
 $Protected = @('explorer','powershell','pwsh','powershell_ise','conhost','system','idle','registry','smss','csrss',
     'wininit','winlogon','services','lsass','svchost','dwm','fontdrvhost','sihost','ctfmon','runtimebroker',
     'searchhost','startmenuexperiencehost','shellexperiencehost','textinputhost','applicationframehost',
@@ -136,15 +185,15 @@ $SiteNicknames = @{
 $GoogleSupport = @('accounts.google.com', 'www.google.com/accounts', 'www.google.com/recaptcha', 'accounts.youtube.com',
     'gstatic.com', 'googleusercontent.com', 'googleapis.com', 'apis.google.com', 'ogs.google.com', 'clients6.google.com')
 $FirefoxExe  = Join-Path $env:ProgramFiles 'Mozilla Firefox\firefox.exe'
-$GuardTaskName = 'StudyLock Guard'
-$GuardDir      = Join-Path $env:ProgramData 'StudyLock'      # admin-only folder; the guard's session state lives here
+$GuardTaskName = 'Lockdown Guard'
+$GuardDir      = Join-Path $env:ProgramData 'Lockdown'       # admin-only folder; the guard's session state lives here
 $GuardState    = Join-Path $GuardDir 'state.json'
 
 # ---------- strict mode ----------
 # A session is enforced by a hidden SYSTEM scheduled task (the guard), not by this window:
-#  - closing or killing Study Lock changes nothing, and a killed guard is restarted by Windows within a minute
+#  - closing or killing Lockdown changes nothing, and a killed guard is restarted by Windows within a minute
 #  - it starts again at boot, and counts time with the uptime clock, so reboots and clock changes don't end a session
-#  - its state sits in an admin-only folder, so editing Study Lock's own settings can't end a session either
+#  - its state sits in an admin-only folder, so editing Lockdown's own settings can't end a session either
 #  - it also closes renamed copies of locked programs, and puts website rules back if they're deleted
 # Shared website-rule functions, used by both the guard and the one-time elevated starter.
 $WebRulesCode = @'
@@ -241,12 +290,12 @@ $TaskName  = '__TASK__'
 $WebOn     = $__WEBON__
 __WEBRULES__
 function Stop-All {
-    foreach ($t in $TaskName, 'StudyLock Unblock Websites') {
+    foreach ($t in $TaskName, 'StudyLock Guard', 'StudyLock Unblock Websites') {   # plus names from before the rename
         Stop-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue
         Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue
     }
     Clear-WebRules
-    Remove-Item $StateFile -Force -ErrorAction SilentlyContinue
+    Remove-Item $StateFile, (Join-Path $env:ProgramData 'StudyLock\state.json') -Force -ErrorAction SilentlyContinue
 }
 try {
     if ($Mode -eq 'Clear') { Stop-All; exit 0 }
@@ -266,7 +315,7 @@ try {
     Start-ScheduledTask -TaskName $TaskName
     exit 0
 } catch {
-    "$(Get-Date -Format s) $($_.Exception.Message)" | Add-Content (Join-Path $env:TEMP 'StudyLock-starter.log')
+    "$(Get-Date -Format s) $($_.Exception.Message)" | Add-Content (Join-Path $env:TEMP 'Lockdown-starter.log')
     try { Stop-All } catch {}
     exit 1
 }
@@ -566,7 +615,7 @@ __ICONS__
 $window = [System.Windows.Markup.XamlReader]::Parse(@'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Study Lock" Width="272" Height="392" WindowStyle="None" AllowsTransparency="True"
+        Title="Lockdown" Width="272" Height="392" WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" ResizeMode="CanMinimize" WindowStartupLocation="CenterScreen" Topmost="True"
         FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="12" Foreground="#F1EFE8"
         TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
@@ -578,7 +627,7 @@ $window = [System.Windows.Markup.XamlReader]::Parse(@'
         <Grid x:Name="TitleBar" Background="Transparent" Height="32">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-lock}" Foreground="#85B7EB" Width="15" Height="15" Margin="0,0,7,0"/>
-            <TextBlock Text="Study Lock" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            <TextBlock Text="Lockdown" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
           </StackPanel>
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-5,0">
             <Button x:Name="ScaleBtn" Style="{StaticResource IconBtn}" Padding="5" ToolTip="Size">
@@ -1093,14 +1142,22 @@ function Load-Config {
     }
 }
 
-# Re-launch Study Lock at sign-in only while a session is running, so a reboot doesn't end it.
+# Re-launch Lockdown at sign-in only while a session is running, so a reboot doesn't end it.
 function Set-Startup([bool]$on) {
     try {
+        $old = Join-Path ([Environment]::GetFolderPath('Startup')) 'Study Lock.lnk'   # name from before the rename
+        if (Test-Path $old) { Remove-Item $old -Force }
         if ($on) {
             $sh  = New-Object -ComObject WScript.Shell
             $lnk = $sh.CreateShortcut($StartupLnk)
-            $lnk.TargetPath  = (Join-Path $PSHOME 'powershell.exe')
-            $lnk.Arguments   = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -STA -File `"$PSCommandPath`" -Startup"
+            if (Test-Path $LauncherExe) {
+                $lnk.TargetPath = $LauncherExe
+                $lnk.Arguments  = '-Startup'
+            } else {
+                $lnk.TargetPath = (Join-Path $PSHOME 'powershell.exe')
+                $lnk.Arguments  = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -STA -File `"$PSCommandPath`" -Startup"
+            }
+            $lnk.IconLocation = $IconPath
             $lnk.WindowStyle = 7
             $lnk.Save()
         } elseif (Test-Path $StartupLnk) {
@@ -1146,8 +1203,13 @@ function Invoke-Guard([string]$Mode, [int]$Seconds = 0) {
     $file = Join-Path $DataDir 'starter.ps1'
     Set-Content -Path $file -Value $text -Encoding UTF8
     try {
-        $p = Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden -Wait -PassThru `
-            -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$file`" -Mode $Mode"
+        if (Test-Path $LauncherExe) {
+            # the launcher runs it with no console window, and the admin prompt shows the Lockdown name and icon
+            $p = Start-Process $LauncherExe -Verb RunAs -Wait -PassThru -ArgumentList "--run `"$file`" -Mode $Mode"
+        } else {
+            $p = Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden -Wait -PassThru `
+                -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$file`" -Mode $Mode"
+        }
         return ($p.ExitCode -eq 0)
     } catch {
         return $false   # the admin prompt was declined
@@ -1181,7 +1243,7 @@ function Unblock-WebsitesAfterSession {
     # The guard clears the rules when it finishes; give it a moment.
     for ($i = 0; $i -lt 10 -and (Test-WebPolicyActive); $i++) { Start-Sleep -Milliseconds 500 }
     if ((Test-WebPolicyActive) -and -not (Test-Path $GuardState)) { [void](Invoke-Guard 'Clear') }
-    if (Test-WebPolicyActive) { return ' Websites are still blocked because the admin prompt was declined. Reopen Study Lock to try again.' }
+    if (Test-WebPolicyActive) { return ' Websites are still blocked because the admin prompt was declined. Reopen Lockdown to try again.' }
     if (Get-Process firefox -ErrorAction SilentlyContinue) { $script:OfferFirefox = $true }
     ''
 }
@@ -1304,7 +1366,7 @@ function Update-Clock {
         $TimeText.Text = Format-Clock $left
         $SubText.Text = 'Left'
         Sync-Ring
-        $tray.Text = "Study Lock - $(Format-Clock $left) Left"
+        $tray.Text = "Lockdown - $(Format-Clock $left) Left"
     } elseif ($script:Durations.Count -eq 0) {
         $TimeText.Text = '--:--'
         $SubText.Text = 'No Length Set'
@@ -1330,7 +1392,7 @@ function Set-UiLocked([bool]$locked) {
     $ModeBar.IsEnabled = -not $locked
     $miExit.Enabled = -not $locked
     if ($locked) { $LockedText.Text = "Locked Until $($script:SessionEnd.ToLocalTime().ToString('t'))" }
-    else { $tray.Text = 'Study Lock' }
+    else { $tray.Text = 'Lockdown' }
     Update-Durations; Update-AppsList; Update-SitesList; Update-Clock
 }
 
@@ -1415,7 +1477,7 @@ function Start-Session {
         if ($script:WebBlock) { Restart-Firefox }
         Complete-SessionStart
     } else {
-        Show-Dialog 'alert-triangle' '#EF9F27' 'Admin Permission Needed' "Without it the session can't be locked down: closing Study Lock would end it, and websites can't be blocked.`n`nStart a basic session anyway?" 'Start Basic Session' {
+        Show-Dialog 'alert-triangle' '#EF9F27' 'Admin Permission Needed' "Without it the session can't be locked down: closing Lockdown would end it, and websites can't be blocked.`n`nStart a basic session anyway?" 'Start Basic Session' {
             $script:SessionEnd = [DateTime]::UtcNow.AddMinutes($script:Minutes); Complete-SessionStart
         } 'Cancel' $null
     }
@@ -1453,11 +1515,11 @@ function Stop-Session {
 
 # ---------- tray ----------
 $tray = New-Object System.Windows.Forms.NotifyIcon
-$tray.Icon = [System.Drawing.SystemIcons]::Shield
-$tray.Text = 'Study Lock'
+$tray.Icon = $(if (Test-Path $IconPath) { New-Object System.Drawing.Icon $IconPath, ([System.Windows.Forms.SystemInformation]::SmallIconSize) } else { [System.Drawing.SystemIcons]::Shield })
+$tray.Text = 'Lockdown'
 $tray.Visible = $true
 $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
-$miOpen = $trayMenu.Items.Add('Open Study Lock')
+$miOpen = $trayMenu.Items.Add('Open Lockdown')
 $miExit = $trayMenu.Items.Add('Exit')
 $tray.ContextMenuStrip = $trayMenu
 
@@ -1497,7 +1559,7 @@ $window.Add_Closing({
     $e.Cancel = $true
     if ($script:SessionEnd) {
         $window.Hide()
-        Show-Toast 'lock' '#85B7EB' 'Still Locked' "Study Lock keeps running in the tray until $($script:SessionEnd.ToLocalTime().ToString('t'))."
+        Show-Toast 'lock' '#85B7EB' 'Still Locked' "Lockdown keeps running in the tray until $($script:SessionEnd.ToLocalTime().ToString('t'))."
     } else {
         Exit-App
     }
@@ -1608,6 +1670,12 @@ $ScaleList.AddHandler([System.Windows.Controls.Primitives.ButtonBase]::ClickEven
 })
 # Apply the right size before the window first appears, and again whenever it's dragged to another screen.
 $window.Add_SourceInitialized({ Update-Scale $true })
+if (Test-Path $IconPath) { $window.Icon = [System.Windows.Media.Imaging.BitmapFrame]::Create((New-Object Uri $IconPath)) }
+$window.Add_SourceInitialized({
+    $hwnd = (New-Object System.Windows.Interop.WindowInteropHelper $window).Handle
+    $cmd = $(if (Test-Path $LauncherExe) { "`"$LauncherExe`"" } else { "`"$(Join-Path $PSHOME 'powershell.exe')`" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -STA -File `"$PSCommandPath`"" })
+    try { [LockdownShell]::SetWindowIdentity($hwnd, $AppId, $cmd, 'Lockdown', "$IconPath,0") } catch {}
+})
 $AddDurBtn.Add_Click({
     $AddDurBtn.Visibility = 'Collapsed'
     $DurHint.Visibility = 'Collapsed'
@@ -1697,7 +1765,7 @@ Set-Pinned $script:Pinned
 $script:Loading = $false
 
 # For strict sessions the guard is the source of truth: its state can't be edited without admin rights,
-# so changing Study Lock's own settings file doesn't end a session.
+# so changing Lockdown's own settings file doesn't end a session.
 $st = Read-GuardState
 if ($null -ne $st) {
     $script:Strict = $true
@@ -1709,7 +1777,7 @@ if ($null -ne $st) {
         $script:SessionEnd = [DateTime]::UtcNow.AddSeconds([double]$st.remaining)
     }
 } elseif ($script:Strict) {
-    # The guard finished while Study Lock was closed.
+    # The guard finished while Lockdown was closed.
     $script:Strict = $false
     $script:SessionEnd = $null
 }
