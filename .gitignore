@@ -1,0 +1,7 @@
+# Windows clutter
+Thumbs.db
+desktop.ini
+*.lnk
+
+# logs
+*.log
