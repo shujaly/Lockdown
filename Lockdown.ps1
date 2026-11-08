@@ -138,7 +138,8 @@ $AppAliases = @{
     'robloxplayerlauncher' = @('robloxplayerbeta', 'robloxplayerlauncher')
 }
 # Browsers that ignore website rules get closed outright while websites are blocked.
-$UnmanagedBrowsers = @('opera', 'vivaldi', 'librewolf', 'waterfox', 'floorp', 'zen', 'arc', 'iexplore')
+$UnmanagedBrowsers = @('opera', 'opera_gx', 'vivaldi', 'librewolf', 'waterfox', 'floorp', 'zen', 'arc', 'iexplore',
+    'duckduckgo', 'thorium', 'browser', 'palemoon', 'basilisk', 'seamonkey', 'maxthon', 'catsxp', 'slimjet', 'iridium')   # 'browser' = Yandex
 
 # ---------- websites ----------
 # Type a name like "youtube" and every domain that site uses is covered. Anything else becomes name.com.
@@ -197,7 +198,7 @@ $GuardState    = Join-Path $GuardDir 'state.json'
 #  - it also closes renamed copies of locked programs, and puts website rules back if they're deleted
 # Shared website-rule functions, used by both the guard and the one-time elevated starter.
 $WebRulesCode = @'
-$ChromeKeys   = @('HKLM:\SOFTWARE\Policies\Google\Chrome', 'HKLM:\SOFTWARE\Policies\Microsoft\Edge', 'HKLM:\SOFTWARE\Policies\BraveSoftware\Brave')
+$ChromeKeys   = @('HKLM:\SOFTWARE\Policies\Google\Chrome', 'HKLM:\SOFTWARE\Policies\Microsoft\Edge', 'HKLM:\SOFTWARE\Policies\BraveSoftware\Brave', 'HKLM:\SOFTWARE\Policies\Chromium')
 $FirefoxKey   = 'HKLM:\SOFTWARE\Policies\Mozilla\Firefox'
 $BlockChrome  = @(__BLOCK_CHROME__)
 $AllowChrome  = @(__ALLOW_CHROME__)
@@ -521,6 +522,22 @@ __ICONS__
           <ControlTemplate.Triggers>
             <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="b" Property="BorderBrush" Value="#378ADD"/></Trigger>
           </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style TargetType="ToolTip">
+    <Setter Property="Foreground" Value="#F1EFE8"/>
+    <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/>
+    <Setter Property="FontSize" Value="11.5"/>
+    <Setter Property="HasDropShadow" Value="False"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToolTip">
+          <Border Background="#383836" BorderBrush="#4A4A47" BorderThickness="1" CornerRadius="6" Padding="8,4">
+            <ContentPresenter/>
+          </Border>
         </ControlTemplate>
       </Setter.Value>
     </Setter>
@@ -1366,7 +1383,6 @@ function Update-Clock {
         $TimeText.Text = Format-Clock $left
         $SubText.Text = 'Left'
         Sync-Ring
-        $tray.Text = "Lockdown - $(Format-Clock $left) Left"
     } elseif ($script:Durations.Count -eq 0) {
         $TimeText.Text = '--:--'
         $SubText.Text = 'No Length Set'
@@ -1392,7 +1408,6 @@ function Set-UiLocked([bool]$locked) {
     $ModeBar.IsEnabled = -not $locked
     $miExit.Enabled = -not $locked
     if ($locked) { $LockedText.Text = "Locked Until $($script:SessionEnd.ToLocalTime().ToString('t'))" }
-    else { $tray.Text = 'Lockdown' }
     Update-Durations; Update-AppsList; Update-SitesList; Update-Clock
 }
 
@@ -1516,19 +1531,91 @@ function Stop-Session {
 # ---------- tray ----------
 $tray = New-Object System.Windows.Forms.NotifyIcon
 $tray.Icon = $(if (Test-Path $IconPath) { New-Object System.Drawing.Icon $IconPath, ([System.Windows.Forms.SystemInformation]::SmallIconSize) } else { [System.Drawing.SystemIcons]::Shield })
-$tray.Text = 'Lockdown'
+$tray.Text = ''        # no Windows tooltip (it can't be styled); Lockdown shows its own, see Show-TrayTip
 $tray.Visible = $true
+
+# Tray menu in Lockdown's colours and font instead of the default light Windows menu.
+Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @"
+using System.Drawing;
+using System.Windows.Forms;
+public class LockdownMenuColors : ProfessionalColorTable {
+    static readonly Color Bg = Color.FromArgb(44, 44, 42), Hover = Color.FromArgb(58, 58, 55), Line = Color.FromArgb(68, 68, 65);
+    public override Color ToolStripDropDownBackground { get { return Bg; } }
+    public override Color ImageMarginGradientBegin { get { return Bg; } }
+    public override Color ImageMarginGradientMiddle { get { return Bg; } }
+    public override Color ImageMarginGradientEnd { get { return Bg; } }
+    public override Color MenuBorder { get { return Line; } }
+    public override Color MenuItemBorder { get { return Hover; } }
+    public override Color MenuItemSelected { get { return Hover; } }
+    public override Color MenuItemSelectedGradientBegin { get { return Hover; } }
+    public override Color MenuItemSelectedGradientEnd { get { return Hover; } }
+    public override Color SeparatorDark { get { return Line; } }
+    public override Color SeparatorLight { get { return Line; } }
+}
+"@
+$UiFontName = $(if ([System.Drawing.FontFamily]::Families.Name -contains 'Segoe UI Variable Text') { 'Segoe UI Variable Text' } else { 'Segoe UI' })
 $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
+$trayMenu.Renderer = New-Object System.Windows.Forms.ToolStripProfessionalRenderer (New-Object LockdownMenuColors)
+$trayMenu.ShowImageMargin = $false
+$trayMenu.Font = New-Object System.Drawing.Font $UiFontName, 9.5
+$trayMenu.Padding = New-Object System.Windows.Forms.Padding 2, 4, 2, 4
 $miOpen = $trayMenu.Items.Add('Open Lockdown')
 $miExit = $trayMenu.Items.Add('Exit')
+foreach ($mi in $miOpen, $miExit) { $mi.ForeColor = [System.Drawing.Color]::FromArgb(241, 239, 232); $mi.Padding = New-Object System.Windows.Forms.Padding 6, 3, 6, 3 }
 $tray.ContextMenuStrip = $trayMenu
+
+# Lockdown's own tray tooltip (name, plus time left during a session).
+$trayTip = [System.Windows.Markup.XamlReader]::Parse(@'
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent" Topmost="True" ShowInTaskbar="False"
+        ShowActivated="False" SizeToContent="WidthAndHeight" ResizeMode="NoResize"
+        FontFamily="Segoe UI Variable Text, Segoe UI" TextOptions.TextFormattingMode="Display">
+  <Border Background="#2C2C2A" BorderBrush="#444441" BorderThickness="1" CornerRadius="8" Padding="10,6">
+    <StackPanel Orientation="Horizontal">
+      <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-lock}" Foreground="#85B7EB" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
+      <TextBlock Text="Lockdown" FontSize="12" FontWeight="SemiBold" Foreground="#F1EFE8" VerticalAlignment="Center"/>
+      <TextBlock x:Name="TipSub" FontSize="12" Foreground="#B4B2A9" Margin="8,0,0,0" VerticalAlignment="Center"/>
+    </StackPanel>
+  </Border>
+</Window>
+'@)
+$TipSub = $trayTip.FindName('TipSub')
+$script:TipAnchor = $null
+$tipTimer = New-Object System.Windows.Threading.DispatcherTimer
+$tipTimer.Interval = [TimeSpan]::FromMilliseconds(200)
+$tipTimer.Add_Tick({
+    # hide once the pointer has moved off the tray icon
+    $p = [System.Windows.Forms.Control]::MousePosition
+    if ([Math]::Abs($p.X - $script:TipAnchor.X) -gt 18 -or [Math]::Abs($p.Y - $script:TipAnchor.Y) -gt 18) { $tipTimer.Stop(); $trayTip.Hide() }
+})
+function Show-TrayTip {
+    $script:TipAnchor = [System.Windows.Forms.Control]::MousePosition
+    if ($trayTip.IsVisible) { return }
+    $TipSub.Text = ''
+    if ($script:SessionEnd) {
+        $left = $script:SessionEnd - [DateTime]::UtcNow
+        if ($left -lt [TimeSpan]::Zero) { $left = [TimeSpan]::Zero }
+        $TipSub.Text = "$(Format-Clock $left) Left"
+    }
+    $TipSub.Visibility = $(if ($TipSub.Text) { 'Visible' } else { 'Collapsed' })
+    $trayTip.Show()
+    $g = [System.Drawing.Graphics]::FromHwnd([IntPtr]::Zero); $dpi = $g.DpiX / 96.0; $g.Dispose()
+    $x = $script:TipAnchor.X / $dpi; $y = $script:TipAnchor.Y / $dpi
+    $trayTip.Left = $x - $trayTip.ActualWidth / 2
+    $trayTip.Top = $y - $trayTip.ActualHeight - 16
+    if ($trayTip.Top -lt [System.Windows.SystemParameters]::VirtualScreenTop) { $trayTip.Top = $y + 22 }   # taskbar at the top
+    $tipTimer.Start()
+}
+$tray.Add_MouseMove({ Show-TrayTip })
+$tray.Add_MouseDown({ $tipTimer.Stop(); $trayTip.Hide() })
 
 function Show-Main { $window.Show(); $window.WindowState = 'Normal'; [void]$window.Activate() }
 function Exit-App {
     $script:Exiting = $true
     $timer.Stop(); $signalTimer.Stop()
     $tray.Visible = $false; $tray.Dispose()
-    $toast.Close()
+    $toast.Close(); $trayTip.Close()
     $window.Close()
     $app.Shutdown()
 }
@@ -1612,6 +1699,7 @@ $Scaler = New-Object System.Windows.Media.ScaleTransform 1.0, 1.0
 $window.Content.LayoutTransform = $Scaler
 $ScalePopup.Child.LayoutTransform = $Scaler
 $toast.Content.LayoutTransform = $Scaler
+$trayTip.Content.LayoutTransform = $Scaler
 $ScaleChoices = @('auto', '1', '1.25', '1.5', '1.75', '2')
 
 function Get-CurrentScreen {

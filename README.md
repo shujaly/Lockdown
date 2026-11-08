@@ -4,10 +4,14 @@ A small Windows app that locks distracting applications and websites for a study
 
 It's a compact, always-on-top miniplayer: pick a session length, choose what to lock, press Start.
 
+| Ready | Websites | Starting | Locked |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/idle.png" width="200" alt="Lockdown ready to start a 45-minute session"> | <img src="docs/websites.png" width="200" alt="Websites tab in Allow Only mode"> | <img src="docs/start.png" width="200" alt="Confirmation before a session starts"> | <img src="docs/locked.png" width="200" alt="A session in progress with the countdown ring"> |
+
 ## Features
 
 - **Lock applications.** Pick from your installed and running apps (with their icons) or browse to any `.exe`. Locked apps are closed the moment they open, and a notice tells you how long is left.
-- **Lock websites** in Chrome, Edge, Brave and Firefox, two ways:
+- **Lock websites** (see [which browsers](#which-browsers-are-covered)), two ways:
   - **Allow Only**: everything is blocked except the sites you list (for example WhatsApp, Google Drive, Google Classroom).
   - **Block List**: only the sites you list are blocked.
   - Type a plain name like `youtube` and every domain that site uses is covered (youtube.com, youtu.be, its video servers, and so on). Anything else becomes `name.com`, and full domains work too.
@@ -57,6 +61,16 @@ If you decline the admin prompt you can still run a **basic session**: applicati
 
 **Honest limit:** on a PC where you're an administrator, nothing is truly unbreakable. Someone determined can still delete the scheduled task from an elevated prompt. Strict mode makes that a deliberate effort instead of one click.
 
+## Which browsers are covered
+
+| Browser | During a session with website blocking |
+|---|---|
+| Chrome, Edge, Brave, Chromium | Sites are blocked or allowed by browser policy (takes effect within seconds) |
+| Firefox | Sites are blocked or allowed by browser policy (Lockdown restarts Firefox so it takes effect; tabs come back) |
+| Opera, Opera GX, Vivaldi, Arc, Zen, LibreWolf, Waterfox, Floorp, Pale Moon, DuckDuckGo, Thorium, Yandex and a few others | Closed, because they ignore website policies |
+
+Not covered: browsers built into other apps (for example a game launcher's store page), portable browsers under an unusual name, and Tor Browser. To close one of those, add it under **Applications**.
+
 ## What it changes on your PC
 
 | Where | What | When |
@@ -64,7 +78,7 @@ If you decline the admin prompt you can still run a **basic session**: applicati
 | `%APPDATA%\Lockdown\config.json` | Your settings | Always |
 | `C:\ProgramData\Lockdown\state.json` | Session state for the guard | During a strict session |
 | Task Scheduler: `Lockdown Guard` | The guard (runs as SYSTEM) | During a strict session |
-| `HKLM\SOFTWARE\Policies\Google\Chrome`, `...\Microsoft\Edge`, `...\BraveSoftware\Brave` (`URLBlocklist`, `URLAllowlist`) and `HKLM\SOFTWARE\Policies\Mozilla\Firefox\WebsiteFilter` | Website rules | During a session with website blocking |
+| `HKLM\SOFTWARE\Policies\Google\Chrome`, `...\Microsoft\Edge`, `...\BraveSoftware\Brave`, `...\Chromium` (`URLBlocklist`, `URLAllowlist`) and `HKLM\SOFTWARE\Policies\Mozilla\Firefox\WebsiteFilter` | Website rules | During a session with website blocking |
 | Startup folder: `Lockdown.lnk` | Reopens the window after a reboot | During a session |
 
 Firefox only reads website rules when it starts, so Lockdown restarts it at the start and offers to at the end (your tabs come back).
@@ -78,6 +92,7 @@ Firefox only reads website rules when it starts, so Lockdown restarts it at the 
 | `Launcher.cs` | Source of `Lockdown.exe`, which starts the app with no console window |
 | `Build-Launcher.ps1` | Builds `Lockdown.exe` from `Launcher.cs` |
 | `Lockdown.ico` | The app icon |
+| `docs/` | Screenshots for this README |
 
 ## Removing everything manually
 
@@ -86,7 +101,7 @@ Normally nothing needs cleaning up. If a session was interrupted in a way that l
 ```powershell
 Unregister-ScheduledTask -TaskName 'Lockdown Guard' -Confirm:$false -ErrorAction SilentlyContinue
 Remove-Item "$env:ProgramData\Lockdown" -Recurse -Force -ErrorAction SilentlyContinue
-foreach ($k in 'Google\Chrome', 'Microsoft\Edge', 'BraveSoftware\Brave') {
+foreach ($k in 'Google\Chrome', 'Microsoft\Edge', 'BraveSoftware\Brave', 'Chromium') {
     Remove-Item "HKLM:\SOFTWARE\Policies\$k\URLBlocklist", "HKLM:\SOFTWARE\Policies\$k\URLAllowlist" -Recurse -Force -ErrorAction SilentlyContinue
 }
 Remove-Item 'HKLM:\SOFTWARE\Policies\Mozilla\Firefox\WebsiteFilter' -Recurse -Force -ErrorAction SilentlyContinue
