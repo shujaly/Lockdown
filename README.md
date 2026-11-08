@@ -1,6 +1,6 @@
 # Lockdown
 
-A small Windows app that locks distracting applications and websites for a study session, and is hard to get around once a session starts.
+An app that blocks websites and applications from being accessed for a set duration to force you to lock-in. It runs on Windows, and it's hard to get around once a session starts.
 
 It's a compact, always-on-top miniplayer: pick a session length, choose what to lock, press Start.
 
@@ -67,7 +67,7 @@ If you decline the admin prompt you can still run a **basic session**: applicati
 |---|---|
 | Chrome, Edge, Brave, Chromium | Sites are blocked or allowed by browser policy (takes effect within seconds) |
 | Firefox | Sites are blocked or allowed by browser policy (Lockdown restarts Firefox so it takes effect; tabs come back) |
-| Opera, Opera GX, Vivaldi, Arc, Zen, LibreWolf, Waterfox, Floorp, Pale Moon, DuckDuckGo, Thorium, Yandex and a few others | Closed, because they ignore website policies |
+| Opera, Opera GX, Vivaldi, Arc, Zen, LibreWolf, Waterfox, Floorp, Pale Moon, Basilisk, SeaMonkey, DuckDuckGo, Thorium, Yandex, Maxthon, Slimjet, Iridium, CatsXP, Internet Explorer | Closed for the whole session, because they ignore website policies |
 
 Not covered: browsers built into other apps (for example a game launcher's store page), portable browsers under an unusual name, and Tor Browser. To close one of those, add it under **Applications**.
 
