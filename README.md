@@ -1,8 +1,6 @@
 # Lockdown
 
-An app that blocks websites and applications from being accessed for a set duration to force you to lock-in. It runs on Windows, and it's hard to get around once a session starts.
-
-It's a compact, always-on-top miniplayer: pick a session length, choose what to lock, press Start.
+An app that blocks websites and applications from being accessed for a set duration to force you to lock-in. A compact, always-on-top window for Windows: pick a length, choose what to lock, press Start. Once a session starts, it can't be stopped early.
 
 | Ready | Websites | Starting | Locked |
 |:---:|:---:|:---:|:---:|
@@ -10,93 +8,59 @@ It's a compact, always-on-top miniplayer: pick a session length, choose what to 
 
 ## Features
 
-- **Lock applications.** Pick from your installed and running apps (with their icons) or browse to any `.exe`. Locked apps are closed the moment they open, and a notice tells you how long is left.
-- **Lock websites** (see [which browsers](#which-browsers-are-covered)), two ways:
-  - **Allow Only**: everything is blocked except the sites you list (for example WhatsApp, Google Drive, Google Classroom).
-  - **Block List**: only the sites you list are blocked.
-  - Type a plain name like `youtube` and every domain that site uses is covered (youtube.com, youtu.be, its video servers, and so on). Anything else becomes `name.com`, and full domains work too.
-- **Strict mode.** Once a session starts it can't be stopped early, and the usual tricks don't work (see below).
-- **Your own session lengths.** Press **+** and type `25`, `45`, `1h30`, and so on. Right-click a length to remove it.
-- **Size per monitor.** The magnifier button scales the window (Auto, 100% to 200%), remembered separately for each screen resolution.
-- Smooth countdown ring, dark theme, pin to keep it on top, its own taskbar icon, and it lives in the system tray while a session runs.
+- **Lock applications:** pick from your installed apps or any `.exe`. Locked apps close the moment they open.
+- **Lock websites:** either **Allow Only** (block everything except your list) or **Block List** (block only your list). Type a name like `youtube` and every domain that site uses is covered.
+- **Strict mode:** sessions can't be ended early, and the usual workarounds don't work (see below).
+- **Your own session lengths** (`25`, `45`, `1h30` ...), a smooth countdown ring, a size setting per monitor, and a tray icon while a session runs.
 
-## Requirements
+## Getting started
 
-- Windows 10 or 11
-- Windows PowerShell 5.1 (built into Windows, nothing to install)
-- An administrator account for strict mode and website blocking (you approve one Windows prompt per session)
-
-## Run it
+Requires Windows 10 or 11. Strict mode and website blocking need an administrator account (one Windows prompt per session).
 
 1. Download or clone this repository.
-2. Double-click **`Lockdown.bat`** the first time. It builds `Lockdown.exe` from [`Launcher.cs`](Launcher.cs) using the C# compiler that ships with Windows, then starts Lockdown.
-3. From then on, open **`Lockdown.exe`**. It starts Lockdown with no console window.
+2. Double-click **`Lockdown.bat`** once. It builds `Lockdown.exe` from [`Launcher.cs`](Launcher.cs) with the C# compiler built into Windows, then starts the app.
+3. After that, open **`Lockdown.exe`**. To pin it, right-click its taskbar button while it's running.
 
-To pin it, start Lockdown, right-click its taskbar button and choose **Pin to taskbar**.
+No prebuilt binary is included: `Lockdown.exe` is a small launcher compiled on your PC so the app starts without a console window. You can also run `Lockdown.ps1` directly with PowerShell.
 
-`Lockdown.exe` isn't checked in, so there's no prebuilt binary to trust: it's built on your PC from the short source file. To rebuild it yourself, run `Build-Launcher.ps1`. You can also skip it and run the script directly:
+## Strict mode
 
-```bat
-powershell -NoProfile -ExecutionPolicy Bypass -STA -File Lockdown.ps1
-```
+When a session starts, Lockdown sets up a hidden scheduled task, **Lockdown Guard**, that runs as `SYSTEM` and does the locking until time is up. Then it removes itself.
 
-## How strict mode works
-
-When a session starts, Lockdown asks for admin permission once and sets up a hidden Windows scheduled task, **Lockdown Guard**, that runs as `SYSTEM` until the session is over. The guard, not the window, does the locking:
-
-| Bypass attempt | What happens |
+| If you try to... | What happens |
 |---|---|
-| Closing or killing Lockdown | Nothing. Apps stay locked. |
-| Killing the guard from Task Manager | A normal user can't see or end it. If an admin ends it, Windows starts it again within a minute, and the time it was down is added back. |
-| Restarting the PC | The guard starts again at boot and carries on. |
-| Changing the system clock | No effect. Time is counted with the uptime clock, so it only counts down while the PC is on. |
-| Editing Lockdown's settings | No effect. The session's state lives in `C:\ProgramData\Lockdown`, which only admins can change. |
-| Copying and renaming a locked `.exe` | Still closed. The guard matches the program's built-in original file name. |
-| Deleting the browser's website rules | The guard puts them back. |
-| Other browsers (Opera, Vivaldi, ...) | Closed while websites are blocked, because they ignore the rules. |
+| Close or kill Lockdown | Nothing. Apps stay locked. |
+| End the guard in Task Manager | A normal user can't. If an admin does, Windows restarts it within a minute and adds the lost time back. |
+| Restart the PC or change the clock | The guard resumes at boot and counts uptime, not clock time. |
+| Edit Lockdown's settings | Ignored. Session state lives in an admin-only folder. |
+| Rename a locked `.exe` | Still closed (matched by its built-in original name). |
+| Delete the browser rules | The guard puts them back. |
 
-When the time is up, the guard removes the website rules, deletes its state and unregisters itself.
+If you decline the admin prompt, you get a **basic session** instead: apps are locked by the window itself and websites aren't blocked.
 
-If you decline the admin prompt you can still run a **basic session**: applications are locked by the Lockdown window itself (closing it ends the session) and websites aren't blocked.
+As an administrator you can still remove the guard on purpose. Strict mode makes quitting a deliberate effort, not a single click.
 
-**Honest limit:** on a PC where you're an administrator, nothing is truly unbreakable. Someone determined can still delete the scheduled task from an elevated prompt. Strict mode makes that a deliberate effort instead of one click.
+## Browsers
 
-## Which browsers are covered
+- **Chrome, Edge, Brave, Chromium and Firefox** follow your website rules. Firefox is restarted at the start of a session so the rules apply, and your tabs come back.
+- **Opera, Opera GX, Vivaldi, Arc, Zen, LibreWolf, Waterfox, Floorp, Pale Moon, Basilisk, SeaMonkey, DuckDuckGo, Thorium, Yandex, Maxthon, Slimjet, Iridium, CatsXP and Internet Explorer** ignore website rules, so they're closed for the whole session.
+- Browsers built into other apps, renamed portable browsers and Tor Browser aren't covered. Add them under **Applications** to close them.
 
-| Browser | During a session with website blocking |
+## Cleanup
+
+Lockdown removes everything it sets up when a session ends, and offers to clean up next time you open it if a session was interrupted.
+
+<details>
+<summary>What it changes, and how to remove it by hand</summary>
+
+| Where | What |
 |---|---|
-| Chrome, Edge, Brave, Chromium | Sites are blocked or allowed by browser policy (takes effect within seconds) |
-| Firefox | Sites are blocked or allowed by browser policy (Lockdown restarts Firefox so it takes effect; tabs come back) |
-| Opera, Opera GX, Vivaldi, Arc, Zen, LibreWolf, Waterfox, Floorp, Pale Moon, Basilisk, SeaMonkey, DuckDuckGo, Thorium, Yandex, Maxthon, Slimjet, Iridium, CatsXP, Internet Explorer | Closed for the whole session, because they ignore website policies |
+| `%APPDATA%\Lockdown` | Your settings |
+| `C:\ProgramData\Lockdown` and the scheduled task `Lockdown Guard` | The guard, during a strict session |
+| `HKLM\SOFTWARE\Policies\` for Chrome, Edge, Brave, Chromium (`URLBlocklist`, `URLAllowlist`) and Firefox (`WebsiteFilter`) | Website rules, during a session |
+| `Lockdown.lnk` in the Startup folder | Reopens the window after a reboot, during a session |
 
-Not covered: browsers built into other apps (for example a game launcher's store page), portable browsers under an unusual name, and Tor Browser. To close one of those, add it under **Applications**.
-
-## What it changes on your PC
-
-| Where | What | When |
-|---|---|---|
-| `%APPDATA%\Lockdown\config.json` | Your settings | Always |
-| `C:\ProgramData\Lockdown\state.json` | Session state for the guard | During a strict session |
-| Task Scheduler: `Lockdown Guard` | The guard (runs as SYSTEM) | During a strict session |
-| `HKLM\SOFTWARE\Policies\Google\Chrome`, `...\Microsoft\Edge`, `...\BraveSoftware\Brave`, `...\Chromium` (`URLBlocklist`, `URLAllowlist`) and `HKLM\SOFTWARE\Policies\Mozilla\Firefox\WebsiteFilter` | Website rules | During a session with website blocking |
-| Startup folder: `Lockdown.lnk` | Reopens the window after a reboot | During a session |
-
-Firefox only reads website rules when it starts, so Lockdown restarts it at the start and offers to at the end (your tabs come back).
-
-## Files
-
-| File | What it is |
-|---|---|
-| `Lockdown.ps1` | The app |
-| `Lockdown.bat` | First-run helper: builds `Lockdown.exe` if needed and starts it |
-| `Launcher.cs` | Source of `Lockdown.exe`, which starts the app with no console window |
-| `Build-Launcher.ps1` | Builds `Lockdown.exe` from `Launcher.cs` |
-| `Lockdown.ico` | The app icon |
-| `docs/` | Screenshots for this README |
-
-## Removing everything manually
-
-Normally nothing needs cleaning up. If a session was interrupted in a way that left something behind, Lockdown offers to clean up the next time you open it. To do it by hand, run this in an **administrator** PowerShell:
+Run in an **administrator** PowerShell:
 
 ```powershell
 Unregister-ScheduledTask -TaskName 'Lockdown Guard' -Confirm:$false -ErrorAction SilentlyContinue
@@ -107,8 +71,8 @@ foreach ($k in 'Google\Chrome', 'Microsoft\Edge', 'BraveSoftware\Brave', 'Chromi
 Remove-Item 'HKLM:\SOFTWARE\Policies\Mozilla\Firefox\WebsiteFilter' -Recurse -Force -ErrorAction SilentlyContinue
 ```
 
-Then delete `%APPDATA%\Lockdown` if you also want your settings gone.
+</details>
 
 ## Credits
 
-Icons from [Tabler Icons](https://tabler.io/icons), Copyright (c) 2020-2024 Paweł Kuna, used under the MIT licence.
+Icons from [Tabler Icons](https://tabler.io/icons), Copyright (c) 2020-2024 Paweł Kuna, MIT licence.
