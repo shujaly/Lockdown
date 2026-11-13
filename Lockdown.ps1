@@ -330,7 +330,7 @@ $script:Durations    = New-Object System.Collections.ArrayList   # minutes the u
 $script:WebMode      = 'allow'    # off | allow | block
 $script:Minutes      = 25
 $script:SessionEnd   = $null      # UTC DateTime while a session is running
-$script:SessionTotal = 25         # minutes, for the ring
+$script:SessionTotal = 25         # minutes, for the progress gauge
 $script:BlockedCount = 0
 $script:WebBlock     = $false     # websites are blocked for the current session
 $script:OfferFirefox = $false
@@ -349,6 +349,27 @@ $script:DlgSecondary = $null
 # ---------- WPF resources ----------
 $app = New-Object System.Windows.Application
 $app.ShutdownMode = 'OnExplicitShutdown'
+
+# Each pair contains the light and dark Windows app appearances.
+$useDarkFolio = (Get-ItemPropertyValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' AppsUseLightTheme -ErrorAction SilentlyContinue) -eq 0
+$palette = @{
+    Paper      = @('#F7F3E9', '#292720')
+    Ink        = @('#302E27', '#F5F0E2')
+    Muted      = @('#655F53', '#C0B7A4')
+    Rule       = @('#C9C0AD', '#504B3E')
+    Soft       = @('#EFE9DA', '#332F26')
+    Rust       = @('#99432E', '#F3AA89')
+    OnRust     = @('#FFF9EF', '#361D14')
+    Tint       = @('#F4E0D3', '#46352B')
+    Scrim      = @('#88615B50', '#9C171510')
+    Success    = @('#36634E', '#98CAAC')
+    PurpleInk  = @('#554D97', '#C7BCFF')
+    PurpleTint = @('#E9E6F4', '#3C354E')
+    GreenInk   = @('#426747', '#A9D0AF')
+    GreenTint  = @('#E3E9DD', '#333F32')
+}
+$FolioColors = @{}
+foreach ($name in $palette.Keys) { $FolioColors[$name] = $palette[$name][[int]$useDarkFolio] }
 
 $iconResources = ($IconPaths.Keys | ForEach-Object { "  <Geometry x:Key=`"i-$_`">$($IconPaths[$_])</Geometry>" }) -join "`r`n"
 $app.Resources = [System.Windows.Markup.XamlReader]::Parse((@'
@@ -375,15 +396,14 @@ __ICONS__
   </Style>
 
   <Style x:Key="Btn" TargetType="Button">
-    <Setter Property="Foreground" Value="#F1EFE8"/>
-    <Setter Property="Background" Value="#444441"/>
+    <Setter Property="Foreground" Value="{DynamicResource FolioInk}"/>
+    <Setter Property="Background" Value="{DynamicResource FolioSoft}"/>
     <Setter Property="Padding" Value="12,5"/>
     <Setter Property="Cursor" Value="Hand"/>
-    <Setter Property="Focusable" Value="False"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="b" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+          <Border x:Name="b" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
           </Border>
           <ControlTemplate.Triggers>
@@ -396,25 +416,24 @@ __ICONS__
     </Setter>
   </Style>
   <Style x:Key="Primary" TargetType="Button" BasedOn="{StaticResource Btn}">
-    <Setter Property="Background" Value="#378ADD"/>
-    <Setter Property="Foreground" Value="#FFFFFF"/>
+    <Setter Property="Background" Value="{DynamicResource FolioRust}"/>
+    <Setter Property="Foreground" Value="{DynamicResource FolioOnRust}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
   </Style>
   <Style x:Key="IconBtn" TargetType="Button">
-    <Setter Property="Foreground" Value="#B4B2A9"/>
+    <Setter Property="Foreground" Value="{DynamicResource FolioMuted}"/>
     <Setter Property="Cursor" Value="Hand"/>
-    <Setter Property="Focusable" Value="False"/>
     <Setter Property="Padding" Value="6"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="b" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+          <Border x:Name="b" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter Property="Foreground" Value="#F1EFE8"/>
-              <Setter TargetName="b" Property="Background" Value="#3A3A37"/>
+              <Setter Property="Foreground" Value="{DynamicResource FolioInk}"/>
+              <Setter TargetName="b" Property="Background" Value="{DynamicResource FolioSoft}"/>
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -422,20 +441,19 @@ __ICONS__
     </Setter>
   </Style>
   <Style x:Key="RowBtn" TargetType="Button">
-    <Setter Property="Foreground" Value="#B4B2A9"/>
+    <Setter Property="Foreground" Value="{DynamicResource FolioMuted}"/>
     <Setter Property="Cursor" Value="Hand"/>
-    <Setter Property="Focusable" Value="False"/>
     <Setter Property="HorizontalContentAlignment" Value="Left"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="b" Background="Transparent" CornerRadius="6" Padding="6,4">
+          <Border x:Name="b" Background="Transparent" CornerRadius="3" Padding="2,6">
             <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter Property="Foreground" Value="#F1EFE8"/>
-              <Setter TargetName="b" Property="Background" Value="#353533"/>
+              <Setter Property="Foreground" Value="{DynamicResource FolioInk}"/>
+              <Setter TargetName="b" Property="Background" Value="{DynamicResource FolioSoft}"/>
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -443,52 +461,49 @@ __ICONS__
     </Setter>
   </Style>
   <Style x:Key="Chip" TargetType="Button">
-    <Setter Property="Foreground" Value="#D3D1C7"/>
-    <Setter Property="BorderBrush" Value="#5F5E5A"/>
-    <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="FontSize" Value="11"/>
+    <Setter Property="Foreground" Value="{DynamicResource FolioInk}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource FolioRule}"/>
+    <Setter Property="Background" Value="{DynamicResource FolioSoft}"/>
+    <Setter Property="FontSize" Value="12"/>
     <Setter Property="Cursor" Value="Hand"/>
-    <Setter Property="Focusable" Value="False"/>
-    <Setter Property="Margin" Value="2,0"/>
+    <Setter Property="Margin" Value="0,0,5,0"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="b" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="7,1" MinHeight="22">
+          <Border x:Name="b" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="3" Padding="9,2" MinHeight="28">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
           </Border>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="Background" Value="#353533"/></Trigger>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="Background" Value="{DynamicResource FolioSoft}"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
     </Setter>
   </Style>
   <Style x:Key="Tab" TargetType="RadioButton">
-    <Setter Property="Foreground" Value="#B4B2A9"/>
+    <Setter Property="Foreground" Value="{DynamicResource FolioMuted}"/>
     <Setter Property="Cursor" Value="Hand"/>
-    <Setter Property="Focusable" Value="False"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="RadioButton">
-          <Border x:Name="b" BorderThickness="0,0,0,2" BorderBrush="Transparent" Padding="0,0,0,4" Margin="0,0,12,-1" Background="Transparent">
+          <Border x:Name="b" BorderThickness="0,0,0,2" BorderBrush="Transparent" Padding="0,6,6,7" Margin="0,0,10,-1" Background="Transparent">
             <ContentPresenter/>
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsChecked" Value="True">
-              <Setter TargetName="b" Property="BorderBrush" Value="#378ADD"/>
-              <Setter Property="Foreground" Value="#F1EFE8"/>
+              <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource FolioRust}"/>
+              <Setter Property="Foreground" Value="{DynamicResource FolioInk}"/>
             </Trigger>
-            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="#F1EFE8"/></Trigger>
+            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{DynamicResource FolioInk}"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
     </Setter>
   </Style>
   <Style x:Key="Seg" TargetType="RadioButton">
-    <Setter Property="Foreground" Value="#B4B2A9"/>
+    <Setter Property="Foreground" Value="{DynamicResource FolioMuted}"/>
     <Setter Property="FontSize" Value="11"/>
     <Setter Property="Cursor" Value="Hand"/>
-    <Setter Property="Focusable" Value="False"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="RadioButton">
@@ -497,8 +512,8 @@ __ICONS__
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsChecked" Value="True">
-              <Setter TargetName="b" Property="Background" Value="#5F5E5A"/>
-              <Setter Property="Foreground" Value="#F1EFE8"/>
+              <Setter TargetName="b" Property="Background" Value="{DynamicResource FolioTint}"/>
+              <Setter Property="Foreground" Value="{DynamicResource FolioInk}"/>
             </Trigger>
             <Trigger Property="IsEnabled" Value="False"><Setter TargetName="b" Property="Opacity" Value="0.6"/></Trigger>
           </ControlTemplate.Triggers>
@@ -507,20 +522,20 @@ __ICONS__
     </Setter>
   </Style>
   <Style TargetType="TextBox">
-    <Setter Property="Foreground" Value="#F1EFE8"/>
-    <Setter Property="Background" Value="#383836"/>
-    <Setter Property="CaretBrush" Value="#F1EFE8"/>
-    <Setter Property="SelectionBrush" Value="#378ADD"/>
+    <Setter Property="Foreground" Value="{DynamicResource FolioInk}"/>
+    <Setter Property="Background" Value="{DynamicResource FolioSoft}"/>
+    <Setter Property="CaretBrush" Value="{DynamicResource FolioInk}"/>
+    <Setter Property="SelectionBrush" Value="{DynamicResource FolioRust}"/>
     <Setter Property="Padding" Value="7,4"/>
     <Setter Property="FontSize" Value="12"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="TextBox">
-          <Border x:Name="b" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="6">
+          <Border x:Name="b" Background="{TemplateBinding Background}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="4">
             <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
           </Border>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="b" Property="BorderBrush" Value="#378ADD"/></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource FolioRust}"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
@@ -528,14 +543,14 @@ __ICONS__
   </Style>
 
   <Style TargetType="ToolTip">
-    <Setter Property="Foreground" Value="#F1EFE8"/>
+    <Setter Property="Foreground" Value="{DynamicResource FolioInk}"/>
     <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI"/>
     <Setter Property="FontSize" Value="11.5"/>
     <Setter Property="HasDropShadow" Value="False"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ToolTip">
-          <Border Background="#383836" BorderBrush="#4A4A47" BorderThickness="1" CornerRadius="6" Padding="8,4">
+          <Border Background="{DynamicResource FolioSoft}" BorderBrush="{DynamicResource FolioRule}" BorderThickness="1" CornerRadius="4" Padding="8,4">
             <ContentPresenter/>
           </Border>
         </ControlTemplate>
@@ -555,10 +570,10 @@ __ICONS__
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Thumb">
-          <Border x:Name="t" Background="#5F5E5A" CornerRadius="3"/>
+          <Border x:Name="t" Background="{DynamicResource FolioRule}" CornerRadius="3"/>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="t" Property="Background" Value="#888780"/></Trigger>
-            <Trigger Property="IsDragging" Value="True"><Setter TargetName="t" Property="Background" Value="#B4B2A9"/></Trigger>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="t" Property="Background" Value="{DynamicResource FolioMuted}"/></Trigger>
+            <Trigger Property="IsDragging" Value="True"><Setter TargetName="t" Property="Background" Value="{DynamicResource FolioMuted}"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
@@ -571,7 +586,7 @@ __ICONS__
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ScrollBar">
-          <Border Background="#333331" CornerRadius="3">
+          <Border Background="{DynamicResource FolioSoft}" CornerRadius="3">
             <Track x:Name="PART_Track" IsDirectionReversed="True">
               <Track.DecreaseRepeatButton><RepeatButton Style="{StaticResource SbPage}" Command="ScrollBar.PageUpCommand"/></Track.DecreaseRepeatButton>
               <Track.IncreaseRepeatButton><RepeatButton Style="{StaticResource SbPage}" Command="ScrollBar.PageDownCommand"/></Track.IncreaseRepeatButton>
@@ -586,7 +601,7 @@ __ICONS__
   <Style TargetType="ListBox">
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="BorderThickness" Value="0"/>
-    <Setter Property="Foreground" Value="#F1EFE8"/>
+    <Setter Property="Foreground" Value="{DynamicResource FolioInk}"/>
     <Setter Property="Padding" Value="0"/>
     <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
   </Style>
@@ -596,11 +611,11 @@ __ICONS__
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ListBoxItem">
-          <Border x:Name="b" Background="Transparent" CornerRadius="6" Padding="6,0">
+          <Border x:Name="b" Background="Transparent" BorderBrush="{DynamicResource FolioRule}" BorderThickness="0,0,0,1" Padding="0,0,3,0">
             <ContentPresenter/>
           </Border>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="Background" Value="#353533"/></Trigger>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="Background" Value="{DynamicResource FolioSoft}"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
@@ -614,12 +629,12 @@ __ICONS__
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ListBoxItem">
-          <Border x:Name="b" Background="Transparent" CornerRadius="6" Padding="6,3" Margin="0,1">
+          <Border x:Name="b" Background="Transparent" CornerRadius="4" Padding="6,3" Margin="0,1">
             <ContentPresenter/>
           </Border>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="Background" Value="#353533"/></Trigger>
-            <Trigger Property="IsSelected" Value="True"><Setter TargetName="b" Property="Background" Value="#24384D"/></Trigger>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="Background" Value="{DynamicResource FolioSoft}"/></Trigger>
+            <Trigger Property="IsSelected" Value="True"><Setter TargetName="b" Property="Background" Value="{DynamicResource FolioTint}"/></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
       </Setter.Value>
@@ -627,24 +642,33 @@ __ICONS__
   </Style>
 </ResourceDictionary>
 '@).Replace('__ICONS__', $iconResources))
+$BrushConv = New-Object System.Windows.Media.BrushConverter
+foreach ($name in $FolioColors.Keys) {
+    $brush = $BrushConv.ConvertFromString($FolioColors[$name])
+    $brush.Freeze()
+    $app.Resources.Add("Folio$name", $brush)
+}
 
 # ---------- main window ----------
 $window = [System.Windows.Markup.XamlReader]::Parse(@'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Lockdown" Width="272" Height="392" WindowStyle="None" AllowsTransparency="True"
+        Title="Lockdown" Width="360" Height="486" WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" ResizeMode="CanMinimize" WindowStartupLocation="CenterScreen" Topmost="True"
-        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="12" Foreground="#F1EFE8"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13" Foreground="{DynamicResource FolioInk}"
         TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
-  <Border Background="#2C2C2A" CornerRadius="10" BorderBrush="#3F3F3C" BorderThickness="1">
+  <Border Background="{DynamicResource FolioPaper}" CornerRadius="9" BorderBrush="{DynamicResource FolioRule}" BorderThickness="1">
     <Grid>
-      <Grid Margin="12,2,12,12">
+      <Grid x:Name="WindowBody" Margin="19,0,19,17">
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
 
-        <Grid x:Name="TitleBar" Background="Transparent" Height="32">
+        <Grid x:Name="TitleBar" Background="Transparent" Height="50">
+          <Border BorderBrush="{DynamicResource FolioRule}" BorderThickness="0,0,0,1" Margin="-19,0"/>
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-lock}" Foreground="#85B7EB" Width="15" Height="15" Margin="0,0,7,0"/>
-            <TextBlock Text="Lockdown" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            <Border Background="{DynamicResource FolioRust}" CornerRadius="3" Width="23" Height="23" Margin="0,0,8,0">
+              <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-lock}" Foreground="{DynamicResource FolioOnRust}" Width="16" Height="16"/>
+            </Border>
+            <TextBlock Text="Lockdown" FontFamily="Georgia" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
           </StackPanel>
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-5,0">
             <Button x:Name="ScaleBtn" Style="{StaticResource IconBtn}" Padding="5" ToolTip="Size">
@@ -652,16 +676,16 @@ $window = [System.Windows.Markup.XamlReader]::Parse(@'
             </Button>
             <Popup x:Name="ScalePopup" PlacementTarget="{Binding ElementName=ScaleBtn}" Placement="Bottom" StaysOpen="False"
                    AllowsTransparency="True" PopupAnimation="Fade" VerticalOffset="4">
-              <Border Background="#383836" BorderBrush="#4A4A47" BorderThickness="1" CornerRadius="8" Padding="4" MinWidth="150">
+              <Border Background="{DynamicResource FolioSoft}" BorderBrush="{DynamicResource FolioRule}" BorderThickness="1" CornerRadius="5" Padding="4" MinWidth="150">
                 <StackPanel>
-                  <TextBlock x:Name="ScaleTitle" Text="Size On This Screen" FontSize="10.5" Foreground="#888780" Margin="6,3,6,4"/>
+                  <TextBlock x:Name="ScaleTitle" Text="Size On This Screen" FontSize="10.5" Foreground="{DynamicResource FolioMuted}" Margin="6,3,6,4"/>
                   <ItemsControl x:Name="ScaleList" Focusable="False">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate>
                         <Button Style="{StaticResource RowBtn}" Tag="{Binding Value}" HorizontalContentAlignment="Stretch">
                           <Grid Width="130">
-                            <TextBlock Text="{Binding Label}" Foreground="#F1EFE8" FontSize="12"/>
-                            <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-check}" Foreground="#85B7EB" Width="12" Height="12"
+                            <TextBlock Text="{Binding Label}" Foreground="{DynamicResource FolioInk}" FontSize="12"/>
+                            <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-check}" Foreground="{DynamicResource FolioRust}" Width="12" Height="12"
                                             HorizontalAlignment="Right" Visibility="{Binding Tick}"/>
                           </Grid>
                         </Button>
@@ -689,70 +713,96 @@ $window = [System.Windows.Markup.XamlReader]::Parse(@'
             <RowDefinition Height="*"/><RowDefinition Height="Auto"/>
           </Grid.RowDefinitions>
 
-          <Grid Width="106" Height="106" HorizontalAlignment="Center" Margin="0,2,0,10">
-            <Ellipse Stroke="#444441" StrokeThickness="6"/>
-            <Ellipse x:Name="Arc" Stroke="#378ADD" StrokeThickness="6" StrokeDashCap="Round" RenderTransformOrigin="0.5,0.5">
-              <Ellipse.RenderTransform><RotateTransform Angle="-90"/></Ellipse.RenderTransform>
-            </Ellipse>
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-              <TextBlock x:Name="TimeText" Text="25:00" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-              <TextBlock x:Name="SubText" Foreground="#B4B2A9" FontSize="11" HorizontalAlignment="Center" Visibility="Collapsed"/>
-            </StackPanel>
-          </Grid>
+          <Border BorderBrush="{DynamicResource FolioInk}" BorderThickness="0,0,0,1" Padding="0,10,1,8">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="22"/></Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock x:Name="SubText" Text="SESSION LENGTH" Foreground="{DynamicResource FolioRust}" FontSize="10.5" FontWeight="SemiBold"/>
+                <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left" Height="71">
+                  <TextBlock x:Name="TimeText" Text="25:00" FontFamily="Georgia" FontSize="63" Typography.NumeralStyle="Lining" Typography.NumeralAlignment="Tabular"/>
+                </Viewbox>
+              </StackPanel>
+              <Canvas Grid.Column="1" Width="20" Height="72" VerticalAlignment="Center" HorizontalAlignment="Right" SnapsToDevicePixels="True">
+                <Path Data="M17,0 V72 M10,9 H17 M10,18 H17 M10,27 H17 M10,45 H17 M10,54 H17 M10,63 H17"
+                      Stroke="{DynamicResource FolioRule}" StrokeThickness="1"/>
+                <Path Data="M4,0 H17 M4,36 H17 M4,72 H17" Stroke="{DynamicResource FolioMuted}" StrokeThickness="1"/>
+                <Rectangle x:Name="GaugeMark" Canvas.Top="0" Fill="{DynamicResource FolioRust}" Width="19" Height="3"/>
+              </Canvas>
+            </Grid>
+          </Border>
 
-          <StackPanel x:Name="DurRow" Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
-            <ItemsControl x:Name="DurList" Focusable="False">
-              <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Button Style="{StaticResource Chip}" Tag="{Binding SelTag}" BorderBrush="{Binding Border}" Foreground="{Binding Fg}"
-                          Content="{Binding Label}" ToolTip="Click to Use, Right-Click to Remove"/>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <TextBlock x:Name="DurHint" Text="Add a Session Length" Foreground="#B4B2A9" FontSize="11" VerticalAlignment="Center" Margin="0,0,5,0" Visibility="Collapsed"/>
-            <TextBox x:Name="DurInput" Width="58" Height="22" Padding="5,1" FontSize="11" Margin="3,0" Visibility="Collapsed" ToolTip="Minutes, Like 45 or 1h30"/>
-            <Button x:Name="AddDurBtn" Style="{StaticResource Chip}" ToolTip="Add a Session Length">
-              <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-plus}" Width="11" Height="11"/>
-            </Button>
-          </StackPanel>
+          <Border x:Name="DurRow" Grid.Row="1" BorderBrush="{DynamicResource FolioRule}" BorderThickness="0,0,0,1" Padding="0,8">
+            <DockPanel LastChildFill="False">
+              <ScrollViewer DockPanel.Dock="Left" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MaxHeight="60" MaxWidth="251">
+                <ItemsControl x:Name="DurList" Focusable="False">
+                  <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Button Style="{StaticResource Chip}" Tag="{Binding SelTag}" BorderBrush="{Binding Border}" Foreground="{Binding Fg}" Background="{Binding Fill}" Content="{Binding Label}" ToolTip="Click to use, right-click to remove"/>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+              <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                <TextBox x:Name="DurInput" Width="59" Height="28" Padding="5,1" FontSize="12" Visibility="Collapsed" ToolTip="Minutes, like 45 or 1h30"/>
+                <Button x:Name="AddDurBtn" Style="{StaticResource Chip}" ToolTip="Add a session length">
+                  <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-plus}" Width="12" Height="12"/>
+                </Button>
+              </StackPanel>
+              <TextBlock x:Name="DurHint" Text="Add a session length" Foreground="{DynamicResource FolioMuted}" VerticalAlignment="Center" Visibility="Collapsed"/>
+            </DockPanel>
+          </Border>
 
-          <Border Grid.Row="2" BorderBrush="#5F5E5A" BorderThickness="0,0,0,1" Margin="0,0,0,4">
+          <Border Grid.Row="2" BorderBrush="{DynamicResource FolioRule}" BorderThickness="0,0,0,1" Margin="0,0,0,4">
             <StackPanel Orientation="Horizontal">
-              <RadioButton x:Name="TabApps" GroupName="Tabs" Style="{StaticResource Tab}" Content="Applications" IsChecked="True"/>
-              <RadioButton x:Name="TabWeb" GroupName="Tabs" Style="{StaticResource Tab}" Content="Websites"/>
+              <RadioButton x:Name="TabApps" GroupName="Tabs" Style="{StaticResource Tab}" IsChecked="True">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="Applications"/>
+                  <Border Background="{DynamicResource FolioSoft}" CornerRadius="2" Margin="5,1,0,1" Padding="4,0">
+                    <TextBlock x:Name="AppsCount" Foreground="{DynamicResource FolioMuted}" FontSize="10" VerticalAlignment="Center"/>
+                  </Border>
+                </StackPanel>
+              </RadioButton>
+              <RadioButton x:Name="TabWeb" GroupName="Tabs" Style="{StaticResource Tab}">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="Websites"/>
+                  <Border Background="{DynamicResource FolioSoft}" CornerRadius="2" Margin="5,1,0,1" Padding="4,0">
+                    <TextBlock x:Name="WebCount" Foreground="{DynamicResource FolioMuted}" FontSize="10" VerticalAlignment="Center"/>
+                  </Border>
+                </StackPanel>
+              </RadioButton>
             </StackPanel>
           </Border>
 
           <Grid Grid.Row="3">
             <DockPanel x:Name="AppsPanel">
-              <Button x:Name="AddAppRow" DockPanel.Dock="Bottom" Style="{StaticResource RowBtn}" Margin="0,1,0,0">
+              <Button x:Name="AddAppRow" DockPanel.Dock="Bottom" Style="{StaticResource RowBtn}" Foreground="{DynamicResource FolioRust}" Margin="0,2,0,0">
                 <StackPanel Orientation="Horizontal">
                   <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-plus}" Width="14" Height="14" Margin="0,0,9,0"/>
-                  <TextBlock Text="Add Application"/>
+                  <TextBlock Text="Add application"/>
                 </StackPanel>
               </Button>
               <Grid>
-                <TextBlock x:Name="AppsEmpty" Text="No Applications Yet" Foreground="#B4B2A9" Margin="6,5" Visibility="Collapsed"/>
+                <TextBlock x:Name="AppsEmpty" Text="No Applications Yet" Foreground="{DynamicResource FolioMuted}" Margin="6,5" Visibility="Collapsed"/>
                 <ListBox x:Name="AppsList" ItemContainerStyle="{StaticResource RowItem}">
                   <ListBox.ItemTemplate>
                     <DataTemplate>
-                      <Grid x:Name="row" Background="Transparent" Height="26">
+                      <Grid x:Name="row" Background="Transparent" Height="36">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                        <ContentControl Style="{StaticResource Ico}" Tag="{Binding Geo}" Foreground="#F1EFE8" Width="14" Height="14" Margin="0,0,9,0" VerticalAlignment="Center"/>
+                        <Border Width="23" Height="23" Margin="0,0,9,0" Background="{Binding IconFill}" CornerRadius="5">
+                          <ContentControl Style="{StaticResource Ico}" Tag="{Binding Geo}" Foreground="{Binding IconInk}" Width="14" Height="14"/>
+                        </Border>
                         <TextBlock Grid.Column="1" Text="{Binding Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                        <ContentControl x:Name="entryLock" Grid.Column="2" Style="{StaticResource Ico}" Tag="{StaticResource i-lock}" Foreground="{DynamicResource FolioMuted}" Width="13" Height="13" Margin="5,0" VerticalAlignment="Center"/>
                         <Button x:Name="rm" Grid.Column="2" Style="{StaticResource IconBtn}" Padding="4" Tag="{Binding Key}" Visibility="Collapsed" ToolTip="Remove">
                           <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-x}" Width="11" Height="11"/>
                         </Button>
                       </Grid>
                       <DataTemplate.Triggers>
-                        <MultiDataTrigger>
-                          <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding IsMouseOver, ElementName=row}" Value="True"/>
-                            <Condition Binding="{Binding CanEdit}" Value="True"/>
-                          </MultiDataTrigger.Conditions>
+                        <DataTrigger Binding="{Binding CanEdit}" Value="True">
+                          <Setter TargetName="entryLock" Property="Visibility" Value="Collapsed"/>
                           <Setter TargetName="rm" Property="Visibility" Value="Visible"/>
-                        </MultiDataTrigger>
+                        </DataTrigger>
                       </DataTemplate.Triggers>
                     </DataTemplate>
                   </ListBox.ItemTemplate>
@@ -761,7 +811,7 @@ $window = [System.Windows.Markup.XamlReader]::Parse(@'
             </DockPanel>
 
             <DockPanel x:Name="WebPanel" Visibility="Collapsed">
-              <Border x:Name="ModeBar" DockPanel.Dock="Top" Background="#383836" CornerRadius="6" Padding="2" Margin="0,2,0,6">
+              <Border x:Name="ModeBar" DockPanel.Dock="Top" Background="{DynamicResource FolioSoft}" CornerRadius="4" Padding="2" Margin="0,2,0,6">
                 <UniformGrid Columns="3">
                   <RadioButton x:Name="ModeOff" GroupName="WebMode" Style="{StaticResource Seg}" Content="Off"/>
                   <RadioButton x:Name="ModeAllow" GroupName="WebMode" Style="{StaticResource Seg}" Content="Allow Only"/>
@@ -770,34 +820,34 @@ $window = [System.Windows.Markup.XamlReader]::Parse(@'
               </Border>
               <Grid x:Name="SiteInputRow" DockPanel.Dock="Top" Margin="0,0,0,4">
                 <TextBox x:Name="SiteInput" Padding="7,4,26,4"/>
-                <TextBlock x:Name="SitePlaceholder" Foreground="#888780" FontSize="12" Margin="13,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                <TextBlock x:Name="SitePlaceholder" Foreground="{DynamicResource FolioMuted}" FontSize="12" Margin="13,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
                 <Button x:Name="AddSiteBtn" Style="{StaticResource IconBtn}" Padding="4" HorizontalAlignment="Right" Margin="0,0,3,0" ToolTip="Add">
                   <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-plus}" Width="12" Height="12"/>
                 </Button>
               </Grid>
-              <TextBlock x:Name="SiteNote" DockPanel.Dock="Top" FontSize="10.5" Foreground="#888780" TextWrapping="Wrap" Margin="2,0,2,3"/>
+              <TextBlock x:Name="SiteNote" DockPanel.Dock="Top" FontSize="10.5" Foreground="{DynamicResource FolioMuted}" TextWrapping="Wrap" Margin="2,0,2,3"/>
               <ListBox x:Name="SitesList" ItemContainerStyle="{StaticResource RowItem}">
                 <ListBox.ItemTemplate>
                   <DataTemplate>
-                    <Grid x:Name="row" Background="Transparent" Height="26">
+                    <Grid x:Name="row" Background="Transparent" Height="36">
                       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                      <ContentControl Style="{StaticResource Ico}" Tag="{Binding Geo}" Foreground="#F1EFE8" Width="14" Height="14" Margin="0,0,9,0" VerticalAlignment="Center"/>
+                      <Border Width="23" Height="23" Margin="0,0,9,0" Background="{DynamicResource FolioTint}" CornerRadius="5">
+                        <ContentControl Style="{StaticResource Ico}" Tag="{Binding Geo}" Foreground="{DynamicResource FolioRust}" Width="14" Height="14"/>
+                      </Border>
                       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Label}"/>
-                        <TextBlock Text="{Binding Detail}" Foreground="#888780" FontSize="10.5" Margin="7,0,0,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding Detail}" Foreground="{DynamicResource FolioMuted}" FontSize="10.5" Margin="7,0,0,0" VerticalAlignment="Center"/>
                       </StackPanel>
-                      <Button x:Name="rm" Grid.Column="2" Style="{StaticResource IconBtn}" Padding="4" Tag="{Binding Key}" Visibility="Collapsed" ToolTip="Remove">
+                      <ContentControl x:Name="entryLock" Grid.Column="2" Style="{StaticResource Ico}" Tag="{StaticResource i-lock}" Foreground="{DynamicResource FolioMuted}" Width="13" Height="13" Margin="5,0" VerticalAlignment="Center"/>
+                        <Button x:Name="rm" Grid.Column="2" Style="{StaticResource IconBtn}" Padding="4" Tag="{Binding Key}" Visibility="Collapsed" ToolTip="Remove">
                         <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-x}" Width="11" Height="11"/>
                       </Button>
                     </Grid>
                     <DataTemplate.Triggers>
-                      <MultiDataTrigger>
-                        <MultiDataTrigger.Conditions>
-                          <Condition Binding="{Binding IsMouseOver, ElementName=row}" Value="True"/>
-                          <Condition Binding="{Binding CanEdit}" Value="True"/>
-                        </MultiDataTrigger.Conditions>
-                        <Setter TargetName="rm" Property="Visibility" Value="Visible"/>
-                      </MultiDataTrigger>
+                      <DataTrigger Binding="{Binding CanEdit}" Value="True">
+                          <Setter TargetName="entryLock" Property="Visibility" Value="Collapsed"/>
+                          <Setter TargetName="rm" Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
                     </DataTemplate.Triggers>
                   </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -806,25 +856,37 @@ $window = [System.Windows.Markup.XamlReader]::Parse(@'
           </Grid>
 
           <Grid Grid.Row="4" Margin="0,8,0,0">
-            <Button x:Name="StartBtn" Style="{StaticResource Primary}" Height="30" Content="Start 25-Minute Session"/>
-            <Border x:Name="LockedBar" Background="#444441" CornerRadius="6" Height="30" Visibility="Collapsed">
-              <TextBlock x:Name="LockedText" Foreground="#D3D1C7" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <Button x:Name="StartBtn" Style="{StaticResource Primary}" Height="39">
+              <Button.ContentTemplate>
+                <DataTemplate>
+                  <StackPanel Orientation="Horizontal">
+                    <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-lock}" Width="14" Height="14" Margin="0,0,7,0"/>
+                    <TextBlock Text="{Binding}"/>
+                  </StackPanel>
+                </DataTemplate>
+              </Button.ContentTemplate>
+            </Button>
+            <Border x:Name="LockedBar" BorderBrush="{DynamicResource FolioRule}" BorderThickness="0,1,0,0" MinHeight="33" Visibility="Collapsed">
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom">
+                <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-lock}" Foreground="{DynamicResource FolioMuted}" Width="14" Height="14" Margin="0,0,6,0"/>
+                <TextBlock x:Name="LockedText" Foreground="{DynamicResource FolioMuted}" FontSize="12"/>
+              </StackPanel>
             </Border>
           </Grid>
         </Grid>
 
-        <DockPanel x:Name="PickerView" Grid.Row="1" Visibility="Collapsed" Background="#2C2C2A">
+        <DockPanel x:Name="PickerView" Grid.Row="1" Visibility="Collapsed" Background="{DynamicResource FolioPaper}">
           <Grid DockPanel.Dock="Top" Margin="0,2,0,8">
             <Button x:Name="PickBack" Style="{StaticResource IconBtn}" HorizontalAlignment="Left" Margin="-5,0,0,0" Padding="5,4" ToolTip="Back">
               <StackPanel Orientation="Horizontal">
                 <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-arrow-left}" Width="14" Height="14" Margin="0,0,7,0"/>
-                <TextBlock Text="Add Applications" FontSize="13" FontWeight="SemiBold" Foreground="#F1EFE8"/>
+                <TextBlock Text="Add applications" FontFamily="Georgia" FontSize="19" Foreground="{DynamicResource FolioInk}"/>
               </StackPanel>
             </Button>
           </Grid>
           <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
             <TextBox x:Name="PickSearch"/>
-            <TextBlock x:Name="PickHint" Text="Search Your Applications" Foreground="#888780" FontSize="12" Margin="13,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
+            <TextBlock x:Name="PickHint" Text="Search your applications" Foreground="{DynamicResource FolioMuted}" FontSize="12" Margin="13,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
           </Grid>
           <Grid DockPanel.Dock="Bottom" Margin="0,8,0,0">
             <Button x:Name="PickBrowse" Style="{StaticResource RowBtn}" HorizontalAlignment="Left" Margin="-6,0,0,0">
@@ -835,7 +897,7 @@ $window = [System.Windows.Markup.XamlReader]::Parse(@'
             </Button>
             <Button x:Name="PickAdd" Style="{StaticResource Primary}" HorizontalAlignment="Right" Content="Add" IsEnabled="False"/>
           </Grid>
-          <TextBlock x:Name="PickNote" DockPanel.Dock="Bottom" FontSize="10.5" Foreground="#888780" Margin="2,5,0,0" Visibility="Collapsed"/>
+          <TextBlock x:Name="PickNote" DockPanel.Dock="Bottom" FontSize="10.5" Foreground="{DynamicResource FolioMuted}" Margin="2,5,0,0" Visibility="Collapsed"/>
           <ListBox x:Name="PickList" SelectionMode="Multiple" ItemContainerStyle="{StaticResource PickItem}">
             <ListBox.ItemTemplate>
               <DataTemplate>
@@ -843,7 +905,7 @@ $window = [System.Windows.Markup.XamlReader]::Parse(@'
                   <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                   <Image Source="{Binding Icon}" Width="20" Height="20" Margin="0,0,9,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
                   <TextBlock Grid.Column="1" Text="{Binding Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                  <ContentControl x:Name="tick" Grid.Column="2" Style="{StaticResource Ico}" Tag="{StaticResource i-check}" Foreground="#85B7EB" Width="13" Height="13" Visibility="Collapsed" VerticalAlignment="Center"/>
+                  <ContentControl x:Name="tick" Grid.Column="2" Style="{StaticResource Ico}" Tag="{StaticResource i-check}" Foreground="{DynamicResource FolioRust}" Width="13" Height="13" Visibility="Collapsed" VerticalAlignment="Center"/>
                 </Grid>
                 <DataTemplate.Triggers>
                   <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
@@ -856,17 +918,39 @@ $window = [System.Windows.Markup.XamlReader]::Parse(@'
         </DockPanel>
       </Grid>
 
-      <Border x:Name="DialogLayer" Background="#E6222220" CornerRadius="10" Visibility="Collapsed">
-        <Border Background="#383836" BorderBrush="#4A4A47" BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="12,0" VerticalAlignment="Center">
-          <StackPanel>
-            <ContentControl x:Name="DlgIcon" Style="{StaticResource Ico}" Width="18" Height="18" HorizontalAlignment="Left"/>
-            <TextBlock x:Name="DlgTitle" FontSize="13.5" FontWeight="SemiBold" Margin="0,8,0,0" TextWrapping="Wrap"/>
-            <TextBlock x:Name="DlgBody" FontSize="12" Foreground="#D3D1C7" Margin="0,5,0,0" TextWrapping="Wrap" LineHeight="17"/>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-              <Button x:Name="DlgSecondaryBtn" Style="{StaticResource Btn}" Margin="0,0,6,0"/>
-              <Button x:Name="DlgPrimaryBtn" Style="{StaticResource Primary}"/>
+      <Border x:Name="DialogLayer" Background="{DynamicResource FolioScrim}" CornerRadius="9" Visibility="Collapsed">
+        <Border Background="{DynamicResource FolioPaper}" BorderBrush="{DynamicResource FolioRule}" BorderThickness="1"
+                CornerRadius="4" Padding="18" Margin="13,18" VerticalAlignment="Center" MaxHeight="445">
+          <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <StackPanel>
+              <ContentControl x:Name="DlgIcon" Style="{StaticResource Ico}" Width="18" Height="18" HorizontalAlignment="Left" Margin="0,0,0,7"/>
+              <TextBlock x:Name="DlgTitle" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
             </StackPanel>
-          </StackPanel>
+            <ScrollViewer x:Name="DlgScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,9,0,0">
+              <StackPanel>
+                <TextBlock x:Name="DlgBody" FontSize="13" Foreground="{DynamicResource FolioMuted}" TextWrapping="Wrap" LineHeight="18"/>
+                <StackPanel x:Name="DlgReview" Visibility="Collapsed">
+                  <Border BorderBrush="{DynamicResource FolioRule}" BorderThickness="0,1" Padding="0,7" Margin="0,10">
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="84"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                      <TextBlock Text="Applications" FontWeight="SemiBold" FontSize="12"/>
+                      <TextBlock x:Name="ReviewApps" Grid.Column="1" FontSize="12" Foreground="{DynamicResource FolioMuted}" TextWrapping="Wrap"/>
+                      <TextBlock Grid.Row="1" Text="Websites" FontWeight="SemiBold" FontSize="12" Margin="0,5,0,0"/>
+                      <TextBlock x:Name="ReviewWeb" Grid.Row="1" Grid.Column="1" FontSize="12" Foreground="{DynamicResource FolioMuted}" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                    </Grid>
+                  </Border>
+                  <TextBlock x:Name="ReviewNote" FontSize="13" Foreground="{DynamicResource FolioMuted}" TextWrapping="Wrap" LineHeight="18"/>
+                </StackPanel>
+              </StackPanel>
+            </ScrollViewer>
+            <Grid Grid.Row="2" Margin="0,13,0,0" MinHeight="36">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+              <Button x:Name="DlgSecondaryBtn" Style="{StaticResource Btn}" Margin="0,0,6,0" MinWidth="79"/>
+              <Button x:Name="DlgPrimaryBtn" Grid.Column="1" Style="{StaticResource Primary}"/>
+            </Grid>
+          </Grid>
         </Border>
       </Border>
     </Grid>
@@ -874,11 +958,11 @@ $window = [System.Windows.Markup.XamlReader]::Parse(@'
 </Window>
 '@)
 
-foreach ($n in 'TitleBar','ScaleBtn','ScalePopup','ScaleTitle','ScaleList','PinBtn','PinIcon','MinBtn','CloseBtn','MainView','Arc','TimeText','SubText','DurRow','DurList','DurHint','DurInput','AddDurBtn',
-               'TabApps','TabWeb','AppsPanel','AddAppRow','AppsEmpty','AppsList','WebPanel','ModeBar','ModeOff','ModeAllow','ModeBlock',
+foreach ($n in 'WindowBody','TitleBar','ScaleBtn','ScalePopup','ScaleTitle','ScaleList','PinBtn','PinIcon','MinBtn','CloseBtn','MainView','GaugeMark','TimeText','SubText','DurRow','DurList','DurHint','DurInput','AddDurBtn',
+               'TabApps','TabWeb','AppsCount','WebCount','AppsPanel','AddAppRow','AppsEmpty','AppsList','WebPanel','ModeBar','ModeOff','ModeAllow','ModeBlock',
                'SiteInputRow','SiteInput','SitePlaceholder','AddSiteBtn','SiteNote','SitesList','StartBtn','LockedBar','LockedText',
                'PickerView','PickBack','PickSearch','PickHint','PickBrowse','PickAdd','PickNote','PickList',
-               'DialogLayer','DlgIcon','DlgTitle','DlgBody','DlgSecondaryBtn','DlgPrimaryBtn') {
+               'DialogLayer','DlgIcon','DlgTitle','DlgBody','DlgScroll','DlgReview','ReviewApps','ReviewWeb','ReviewNote','DlgSecondaryBtn','DlgPrimaryBtn') {
     Set-Variable -Name $n -Value $window.FindName($n) -Scope Script
 }
 
@@ -889,13 +973,13 @@ $toast = [System.Windows.Markup.XamlReader]::Parse(@'
         WindowStyle="None" AllowsTransparency="True" Background="Transparent" Topmost="True" ShowInTaskbar="False"
         ShowActivated="False" SizeToContent="WidthAndHeight" ResizeMode="NoResize"
         FontFamily="Segoe UI Variable Text, Segoe UI" TextOptions.TextFormattingMode="Display">
-  <Border Background="#2C2C2A" BorderBrush="#444441" BorderThickness="1" CornerRadius="10" Padding="16,13" MinWidth="300" MaxWidth="380">
+  <Border Background="{DynamicResource FolioPaper}" BorderBrush="{DynamicResource FolioSoft}" BorderThickness="1" CornerRadius="9" Padding="16,13" MinWidth="300" MaxWidth="380">
     <Grid>
       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <ContentControl x:Name="ToastIcon" Style="{StaticResource Ico}" Width="20" Height="20" VerticalAlignment="Top" Margin="0,1,12,0"/>
       <StackPanel Grid.Column="1">
-        <TextBlock x:Name="ToastTitle" FontSize="14" FontWeight="SemiBold" Foreground="#F1EFE8" TextWrapping="Wrap"/>
-        <TextBlock x:Name="ToastBody" FontSize="12" Foreground="#B4B2A9" Margin="0,3,0,0" TextWrapping="Wrap"/>
+        <TextBlock x:Name="ToastTitle" FontFamily="Georgia" FontSize="17" Foreground="{DynamicResource FolioInk}" TextWrapping="Wrap"/>
+        <TextBlock x:Name="ToastBody" FontSize="12" Foreground="{DynamicResource FolioMuted}" Margin="0,3,0,0" TextWrapping="Wrap"/>
       </StackPanel>
     </Grid>
   </Border>
@@ -906,7 +990,6 @@ $toastTimer = New-Object System.Windows.Threading.DispatcherTimer
 $toastTimer.Interval = [TimeSpan]::FromSeconds(3.5)
 $toastTimer.Add_Tick({ $toastTimer.Stop(); $toast.Hide() })
 $toast.Add_MouseLeftButtonDown({ $toastTimer.Stop(); $toast.Hide() })
-$BrushConv = New-Object System.Windows.Media.BrushConverter
 
 function Show-Toast([string]$icon, [string]$color, [string]$title, [string]$body) {
     $ToastIcon.Tag = $Geo[$icon]
@@ -924,6 +1007,9 @@ function Show-Toast([string]$icon, [string]$color, [string]$title, [string]$body
 function Show-Dialog([string]$icon, [string]$color, [string]$title, [string]$body, [string]$primary, [scriptblock]$onPrimary,
                      [string]$secondary = '', [scriptblock]$onSecondary = $null) {
     Show-Main
+    $DlgReview.Visibility = 'Collapsed'
+    $DlgIcon.Visibility = 'Visible'
+    $DlgScroll.ScrollToTop()
     $DlgIcon.Tag = $Geo[$icon]
     $DlgIcon.Foreground = $BrushConv.ConvertFromString($color)
     $DlgTitle.Text = $title
@@ -934,10 +1020,13 @@ function Show-Dialog([string]$icon, [string]$color, [string]$title, [string]$bod
     $DlgSecondaryBtn.Visibility = $(if ($secondary) { 'Visible' } else { 'Collapsed' })
     $script:DlgPrimary = $onPrimary
     $script:DlgSecondary = $onSecondary
+    $WindowBody.IsEnabled = $false
     $DialogLayer.Visibility = 'Visible'
+    if ($secondary) { [void]$DlgSecondaryBtn.Focus() } else { [void]$DlgPrimaryBtn.Focus() }
 }
 function Close-Dialog([bool]$primary) {
     $DialogLayer.Visibility = 'Collapsed'
+    $WindowBody.IsEnabled = $true
     $action = $script:DlgSecondary
     if ($primary) { $action = $script:DlgPrimary }
     $script:DlgPrimary = $null; $script:DlgSecondary = $null
@@ -955,33 +1044,15 @@ function Format-Chip([int]$m) {
     if ($r -eq 0) { "${h}h" } else { "${h}h ${r}m" }
 }
 
-# The ring is a dashed circle whose dash covers the time left. During a session WPF animates the dash
-# frame by frame, so it drains smoothly instead of stepping once a second.
-$RingLen = [Math]::PI * (106 - 6) / 6.0          # circumference, in stroke-thickness units (106 px ring, 6 px stroke)
-$RingDash = New-Object System.Windows.Media.DoubleCollection
-$RingDash.Add($RingLen); $RingDash.Add($RingLen * 2)
-$Arc.StrokeDashArray = $RingDash
-$script:RingEnd = $null; $script:RingTotal = $null
-
+# Position the ruler's marker from full (top) to empty (bottom).
 function Set-Ring([double]$p) {
-    $Arc.BeginAnimation([System.Windows.Shapes.Shape]::StrokeDashOffsetProperty, $null)   # stop any animation
-    $script:RingEnd = $null
-    $p = [Math]::Max(0.0, [Math]::Min(1.0, $p))   # 0.0/1.0, not 0/1: integer overloads would round
-    $Arc.Visibility = $(if ($p -le 0.0005) { 'Hidden' } else { 'Visible' })
-    $Arc.StrokeDashOffset = $RingLen * (1.0 - $p)
+    $remaining = [Math]::Max(0.0, [Math]::Min(1.0, $p))
+    [System.Windows.Controls.Canvas]::SetTop($GaugeMark, (1.0 - $remaining) * $GaugeMark.Parent.Height - $GaugeMark.Height / 2)
 }
 
-# Start (or correct) the smooth countdown so the ring reaches empty exactly at the session's end.
 function Sync-Ring {
-    if ($script:RingEnd -eq $script:SessionEnd -and $script:RingTotal -eq $script:SessionTotal) { return }
-    $left = [Math]::Max(0.1, ($script:SessionEnd - [DateTime]::UtcNow).TotalSeconds)
-    $p = [Math]::Max(0.0, [Math]::Min(1.0, $left / ([Math]::Max(1.0, [double]$script:SessionTotal) * 60.0)))
-    $Arc.Visibility = 'Visible'
-    $anim = New-Object System.Windows.Media.Animation.DoubleAnimation -ArgumentList ($RingLen * (1.0 - $p)), $RingLen,
-        (New-Object System.Windows.Duration ([TimeSpan]::FromSeconds($left)))
-    [System.Windows.Media.Animation.Timeline]::SetDesiredFrameRate($anim, 30)
-    $Arc.BeginAnimation([System.Windows.Shapes.Shape]::StrokeDashOffsetProperty, $anim)
-    $script:RingEnd = $script:SessionEnd; $script:RingTotal = $script:SessionTotal
+    $left = ($script:SessionEnd - [DateTime]::UtcNow).TotalSeconds
+    Set-Ring ($left / ([Math]::Max(1.0, [double]$script:SessionTotal) * 60.0))
 }
 
 function ConvertTo-ProcName([string]$s) {
@@ -1268,8 +1339,16 @@ function Unblock-WebsitesAfterSession {
 # ---------- lists ----------
 function Update-AppsList {
     $edit = -not $script:SessionEnd
+    $AppsCount.Text = [string]$script:Apps.Count
     $AppsList.ItemsSource = @(foreach ($a in $script:Apps) {
-        [pscustomobject]@{ Label = $a.Label; Geo = (Get-AppGlyph $a); Key = $a.Names[0]; CanEdit = $edit }
+        $badge = switch -Regex ($a.Names[0]) {
+            '^discord' { 'Purple' }
+            '^(spotify|minecraft|whatsapp)' { 'Green' }
+            default { '' }
+        }
+        [pscustomobject]@{ Label = $a.Label; Geo = (Get-AppGlyph $a); Key = $a.Names[0]; CanEdit = $edit
+            IconFill = $(if ($badge) { $FolioColors["${badge}Tint"] } else { $FolioColors.Soft })
+            IconInk = $(if ($badge) { $FolioColors["${badge}Ink"] } else { $FolioColors.Ink }) }
     })
     $AppsEmpty.Visibility = $(if ($script:Apps.Count -eq 0) { 'Visible' } else { 'Collapsed' })
 }
@@ -1278,7 +1357,8 @@ function Update-SitesList {
     $edit = -not $script:SessionEnd
     $list = $script:BlockSites
     if ($script:WebMode -eq 'allow') { $list = $script:AllowSites }
-    $showList = $script:WebMode -ne 'off'
+    $showList = $script:WebMode -ne 'off' -and ($edit -or $script:WebBlock)
+    $WebCount.Text = $(if ($showList) { [string]$list.Count } else { '0' })
     $SitesList.ItemsSource = @(if ($showList) { foreach ($s in $list) {
         $key = Get-SiteKey $s
         $d = @(Resolve-Site $s)
@@ -1295,18 +1375,24 @@ function Update-SitesList {
         'allow' { $(if ($list.Count -eq 0) { 'Nothing allowed yet, so every website will be blocked.' } else { '' }) }
         'block' { $(if ($list.Count -eq 0) { 'Add the sites you want blocked.' } else { '' }) }
     }
+    if (-not $edit) {
+        $SiteNote.Text = if (-not $script:WebBlock) { 'Websites stay open during this session.' }
+            elseif ($script:WebMode -eq 'block') { 'Block only these websites' }
+            elseif ($list.Count -eq 0) { 'All websites are blocked.' }
+            else { 'Allow only these websites' }
+    }
     $SiteNote.Visibility = $(if ($SiteNote.Text) { 'Visible' } else { 'Collapsed' })
 }
 
 function Update-Durations {
-    $edit = -not $script:SessionEnd
     $sorted = @($script:Durations | Sort-Object -Unique)
     $DurList.ItemsSource = @(foreach ($m in $sorted) {
         $sel = ($m -eq $script:Minutes)
         [pscustomobject]@{
             Label = (Format-Chip $m); SelTag = "sel:$m"; RmTag = "rm:$m"
-            Border = $(if ($sel) { '#378ADD' } else { '#5F5E5A' })
-            Fg = $(if ($sel) { '#85B7EB' } else { '#D3D1C7' })
+            Border = $(if ($sel) { $FolioColors.Rust } else { $FolioColors.Soft })
+            Fill = $(if ($sel) { $FolioColors.Tint } else { $FolioColors.Soft })
+            Fg = $(if ($sel) { $FolioColors.Rust } else { $FolioColors.Ink })
         }
     })
     $DurHint.Visibility = $(if ($sorted.Count -eq 0 -and $DurInput.Visibility -ne 'Visible') { 'Visible' } else { 'Collapsed' })
@@ -1381,19 +1467,19 @@ function Update-Clock {
         $left = $script:SessionEnd - [DateTime]::UtcNow
         if ($left -lt [TimeSpan]::Zero) { $left = [TimeSpan]::Zero }
         $TimeText.Text = Format-Clock $left
-        $SubText.Text = 'Left'
+        $SubText.Text = 'TIME REMAINING'
         Sync-Ring
     } elseif ($script:Durations.Count -eq 0) {
         $TimeText.Text = '--:--'
-        $SubText.Text = 'No Length Set'
+        $SubText.Text = 'CHOOSE A SESSION LENGTH'
         Set-Ring 0
         $StartBtn.Content = 'Add a Session Length'
     } else {
         if ($script:Durations -notcontains $script:Minutes) { $script:Minutes = @($script:Durations | Sort-Object)[0] }
         $TimeText.Text = Format-Clock ([TimeSpan]::FromMinutes($script:Minutes))
-        $SubText.Text = ''
+        $SubText.Text = 'SESSION LENGTH'
         Set-Ring 1
-        $StartBtn.Content = "Start $($script:Minutes)-Minute Session"
+        $StartBtn.Content = "Start $($script:Minutes)-minute session"
     }
     $SubText.Visibility = $(if ($SubText.Text) { 'Visible' } else { 'Collapsed' })
 }
@@ -1405,9 +1491,12 @@ function Set-UiLocked([bool]$locked) {
     $StartBtn.Visibility = $show
     $LockedBar.Visibility = $hide
     $AddAppRow.Visibility = $show
-    $ModeBar.IsEnabled = -not $locked
+    $ModeBar.Visibility = $show
     $miExit.Enabled = -not $locked
-    if ($locked) { $LockedText.Text = "Locked Until $($script:SessionEnd.ToLocalTime().ToString('t'))" }
+    if ($locked) {
+        $endLabel = $script:SessionEnd.ToLocalTime().ToString('t')
+        $LockedText.Text = $(if ($script:Strict) { "Locked until $endLabel" } else { "Basic session until $endLabel" })
+    }
     Update-Durations; Update-AppsList; Update-SitesList; Update-Clock
 }
 
@@ -1417,7 +1506,7 @@ function Show-BlockedToast([string[]]$hit) {
         if ($a) { $a.Label } else { $h }
     } | Select-Object -Unique)
     if ($labels.Count -eq 0) { $labels = @('That application') }
-    Show-Toast 'lock' '#F09595' "$($labels -join ', ') Is Locked" "$(Format-Clock ($script:SessionEnd - [DateTime]::UtcNow)) left. Back to studying."
+    Show-Toast 'lock' $FolioColors.Rust "$($labels -join ', ') Is Locked" "$(Format-Clock ($script:SessionEnd - [DateTime]::UtcNow)) left. Back to studying."
 }
 
 # Strict sessions: follow the guard (time left, blocks) instead of enforcing here.
@@ -1462,23 +1551,31 @@ function Request-Session {
     $web = $script:WebMode
     if ($script:Durations.Count -eq 0) { return }
     if ($script:Apps.Count -eq 0 -and $web -eq 'off') {
-        Show-Dialog 'alert-triangle' '#EF9F27' 'Nothing to Lock' 'Add an application, or turn on website blocking, first.' 'OK' $null
+        Show-Dialog 'alert-triangle' $FolioColors.Rust 'Nothing to Lock' 'Add an application, or turn on website blocking, first.' 'OK' $null
         return
     }
     if ($web -eq 'block' -and $script:BlockSites.Count -eq 0) {
-        Show-Dialog 'alert-triangle' '#EF9F27' 'No Sites to Block' 'Add a site to your block list, or set Websites to Off.' 'OK' $null
+        Show-Dialog 'alert-triangle' $FolioColors.Rust 'No Sites to Block' 'Add a site to your block list, or set Websites to Off.' 'OK' $null
         return
     }
-    $lines = @()
-    if ($script:Apps.Count -gt 0) { $lines += "Locked applications: $((@($script:Apps | ForEach-Object { $_.Label })) -join ', ')." }
+    $endLabel = (Get-Date).AddMinutes($script:Minutes).ToString('t')
+    Show-Dialog 'lock' $FolioColors.Rust "Start a $($script:Minutes)-minute session?" "Once started, the session runs until about $endLabel. You can't end it early." 'Start session' { Start-Session } 'Not yet' $null
+    $ReviewApps.Text = $(if ($script:Apps.Count) { ($script:Apps | ForEach-Object { $_.Label }) -join ', ' } else { 'None selected' })
     $siteLabel = { param($s) $k = Get-SiteKey $s; if ($SiteNames.ContainsKey($k)) { $SiteNames[$k] } else { $s } }
-    if ($web -eq 'allow') { $lines += "Websites: only $((@($script:AllowSites | ForEach-Object { & $siteLabel $_ })) -join ', ')." }
-    if ($web -eq 'block') { $lines += "Blocked sites: $((@($script:BlockSites | ForEach-Object { & $siteLabel $_ })) -join ', ')." }
-    $note = 'Windows will ask for admin permission to lock the session down.'
-    if ($web -ne 'off' -and (Get-Process firefox -ErrorAction SilentlyContinue)) { $note += ' Firefox will restart, and your tabs come back.' }
-    $lines += $note
-    $lines += "Open locked applications close right away, and the session can't be stopped early."
-    Show-Dialog 'lock' '#85B7EB' "Start a $($script:Minutes)-Minute Session?" ($lines -join "`n`n") 'Start' { Start-Session } 'Not Yet' $null
+    $ReviewWeb.Text = switch ($web) {
+        'off' { 'Off' }
+        'allow' {
+            if ($script:AllowSites.Count) { 'Allow only ' + (($script:AllowSites | ForEach-Object { & $siteLabel $_ }) -join ', ') }
+            else { 'Block all websites' }
+        }
+        'block' { 'Block ' + (($script:BlockSites | ForEach-Object { & $siteLabel $_ }) -join ', ') }
+    }
+    $note = 'Windows will ask for administrator access for strict blocking.'
+    if ($script:Apps.Count) { $note = "Selected apps close immediately. $note" }
+    if ($web -ne 'off' -and (Get-Process firefox -ErrorAction SilentlyContinue)) { $note += ' Firefox will restart and restore your tabs.' }
+    $ReviewNote.Text = $note
+    $DlgIcon.Visibility = 'Collapsed'
+    $DlgReview.Visibility = 'Visible'
 }
 
 function Start-Session {
@@ -1492,7 +1589,7 @@ function Start-Session {
         if ($script:WebBlock) { Restart-Firefox }
         Complete-SessionStart
     } else {
-        Show-Dialog 'alert-triangle' '#EF9F27' 'Admin Permission Needed' "Without it the session can't be locked down: closing Lockdown would end it, and websites can't be blocked.`n`nStart a basic session anyway?" 'Start Basic Session' {
+        Show-Dialog 'alert-triangle' $FolioColors.Rust 'Admin Permission Needed' "A basic session blocks applications only while Lockdown is running. Websites stay open.`n`nStart a basic session anyway?" 'Start Basic Session' {
             $script:SessionEnd = [DateTime]::UtcNow.AddMinutes($script:Minutes); Complete-SessionStart
         } 'Cancel' $null
     }
@@ -1507,7 +1604,7 @@ function Complete-SessionStart {
     Set-UiLocked $true
     Invoke-Enforce
     $timer.Start()
-    Show-Toast 'lock' '#85B7EB' 'Focus Session Started' "Locked until $($script:SessionEnd.ToLocalTime().ToString('t')). Closing the window keeps it running."
+    Show-Toast 'lock' $FolioColors.Rust 'Focus Session Started' $(if ($script:Strict) { "Locked until $($script:SessionEnd.ToLocalTime().ToString('t')). Closing the window keeps it running." } else { 'Basic session started. Keep Lockdown open to block applications.' })
 }
 
 function Stop-Session {
@@ -1518,12 +1615,12 @@ function Stop-Session {
     $note = Unblock-WebsitesAfterSession
     Save-Config
     Set-UiLocked $false
-    Show-Toast 'check' '#5DCAA5' 'Session Complete' 'Your applications and websites are unlocked.'
+    Show-Toast 'check' $FolioColors.Success 'Session Complete' 'Your applications and websites are unlocked.'
     $n = $script:BlockedCount
     $what = $(if ($n -eq 1) { '1 distraction' } else { "$n distractions" })
-    Show-Dialog 'check' '#5DCAA5' 'Session Complete' "Nice work. You blocked $what.$note" 'Done' {
+    Show-Dialog 'check' $FolioColors.Success 'Session Complete' "Nice work. You blocked $what.$note" 'Done' {
         if ($script:OfferFirefox) {
-            Show-Dialog 'brand-firefox' '#85B7EB' 'Restart Firefox?' 'Firefox needs a restart before every website opens again. Your tabs come back.' 'Restart' { Restart-Firefox } 'Later' $null
+            Show-Dialog 'brand-firefox' $FolioColors.Rust 'Restart Firefox?' 'Firefox needs a restart before every website opens again. Your tabs come back.' 'Restart' { Restart-Firefox } 'Later' $null
         }
     }
 }
@@ -1539,7 +1636,8 @@ Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinit
 using System.Drawing;
 using System.Windows.Forms;
 public class LockdownMenuColors : ProfessionalColorTable {
-    static readonly Color Bg = Color.FromArgb(44, 44, 42), Hover = Color.FromArgb(58, 58, 55), Line = Color.FromArgb(68, 68, 65);
+    readonly Color Bg, Hover, Line;
+    public LockdownMenuColors(Color bg, Color hover, Color line) { Bg = bg; Hover = hover; Line = line; }
     public override Color ToolStripDropDownBackground { get { return Bg; } }
     public override Color ImageMarginGradientBegin { get { return Bg; } }
     public override Color ImageMarginGradientMiddle { get { return Bg; } }
@@ -1555,13 +1653,14 @@ public class LockdownMenuColors : ProfessionalColorTable {
 "@
 $UiFontName = $(if ([System.Drawing.FontFamily]::Families.Name -contains 'Segoe UI Variable Text') { 'Segoe UI Variable Text' } else { 'Segoe UI' })
 $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
-$trayMenu.Renderer = New-Object System.Windows.Forms.ToolStripProfessionalRenderer (New-Object LockdownMenuColors)
+$trayColors = New-Object LockdownMenuColors ([System.Drawing.ColorTranslator]::FromHtml($FolioColors.Paper)), ([System.Drawing.ColorTranslator]::FromHtml($FolioColors.Soft)), ([System.Drawing.ColorTranslator]::FromHtml($FolioColors.Rule))
+$trayMenu.Renderer = New-Object System.Windows.Forms.ToolStripProfessionalRenderer $trayColors
 $trayMenu.ShowImageMargin = $false
 $trayMenu.Font = New-Object System.Drawing.Font $UiFontName, 9.5
 $trayMenu.Padding = New-Object System.Windows.Forms.Padding 2, 4, 2, 4
 $miOpen = $trayMenu.Items.Add('Open Lockdown')
 $miExit = $trayMenu.Items.Add('Exit')
-foreach ($mi in $miOpen, $miExit) { $mi.ForeColor = [System.Drawing.Color]::FromArgb(241, 239, 232); $mi.Padding = New-Object System.Windows.Forms.Padding 6, 3, 6, 3 }
+foreach ($mi in $miOpen, $miExit) { $mi.ForeColor = [System.Drawing.ColorTranslator]::FromHtml($FolioColors.Ink); $mi.Padding = New-Object System.Windows.Forms.Padding 6, 3, 6, 3 }
 $tray.ContextMenuStrip = $trayMenu
 
 # Lockdown's own tray tooltip (name, plus time left during a session).
@@ -1571,11 +1670,11 @@ $trayTip = [System.Windows.Markup.XamlReader]::Parse(@'
         WindowStyle="None" AllowsTransparency="True" Background="Transparent" Topmost="True" ShowInTaskbar="False"
         ShowActivated="False" SizeToContent="WidthAndHeight" ResizeMode="NoResize"
         FontFamily="Segoe UI Variable Text, Segoe UI" TextOptions.TextFormattingMode="Display">
-  <Border Background="#2C2C2A" BorderBrush="#444441" BorderThickness="1" CornerRadius="8" Padding="10,6">
+  <Border Background="{DynamicResource FolioPaper}" BorderBrush="{DynamicResource FolioSoft}" BorderThickness="1" CornerRadius="5" Padding="10,6">
     <StackPanel Orientation="Horizontal">
-      <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-lock}" Foreground="#85B7EB" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
-      <TextBlock Text="Lockdown" FontSize="12" FontWeight="SemiBold" Foreground="#F1EFE8" VerticalAlignment="Center"/>
-      <TextBlock x:Name="TipSub" FontSize="12" Foreground="#B4B2A9" Margin="8,0,0,0" VerticalAlignment="Center"/>
+      <ContentControl Style="{StaticResource Ico}" Tag="{StaticResource i-lock}" Foreground="{DynamicResource FolioRust}" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
+      <TextBlock Text="Lockdown" FontFamily="Georgia" FontSize="15" Foreground="{DynamicResource FolioInk}" VerticalAlignment="Center"/>
+      <TextBlock x:Name="TipSub" FontSize="12" Foreground="{DynamicResource FolioMuted}" Margin="8,0,0,0" VerticalAlignment="Center"/>
     </StackPanel>
   </Border>
 </Window>
@@ -1646,7 +1745,7 @@ $window.Add_Closing({
     $e.Cancel = $true
     if ($script:SessionEnd) {
         $window.Hide()
-        Show-Toast 'lock' '#85B7EB' 'Still Locked' "Lockdown keeps running in the tray until $($script:SessionEnd.ToLocalTime().ToString('t'))."
+        Show-Toast 'lock' $FolioColors.Rust 'Still Locked' "Lockdown keeps running in the tray until $($script:SessionEnd.ToLocalTime().ToString('t'))."
     } else {
         Exit-App
     }
@@ -1688,13 +1787,13 @@ function Set-Pinned([bool]$on) {
     $script:Pinned = $on
     $window.Topmost = $on
     $PinIcon.Tag = $(if ($on) { $Geo['pinned'] } else { $Geo['pin'] })
-    $PinIcon.Foreground = $BrushConv.ConvertFromString($(if ($on) { '#85B7EB' } else { '#B4B2A9' }))
+    $PinIcon.Foreground = $BrushConv.ConvertFromString($(if ($on) { $FolioColors.Rust } else { $FolioColors.Muted }))
     $PinBtn.ToolTip = $(if ($on) { 'Kept on Top, Click to Unpin' } else { 'Keep on Top' })
 }
 $PinBtn.Add_Click({ Set-Pinned (-not $script:Pinned); Save-Config })
 
 # ---------- size (remembered per monitor) ----------
-$BaseWidth = 272; $BaseHeight = 392
+$BaseWidth = 360; $BaseHeight = 486
 $Scaler = New-Object System.Windows.Media.ScaleTransform 1.0, 1.0
 $window.Content.LayoutTransform = $Scaler
 $ScalePopup.Child.LayoutTransform = $Scaler
@@ -1720,14 +1819,16 @@ function Update-Scale([bool]$recenter = $false) {
     $pref = $script:Scales[(Get-ScreenKey)]
     if (-not $pref) { $pref = 'auto' }
     $s = $(if ($pref -eq 'auto') { Get-AutoScale } else { [double]::Parse($pref, [Globalization.CultureInfo]::InvariantCulture) })
+    # Honor the saved preference wherever the whole miniplayer fits on the monitor.
+    $dpi = 1.0; try { $dpi = [System.Windows.Media.VisualTreeHelper]::GetDpi($window).DpiScaleX } catch {}
+    $wa = (Get-CurrentScreen).WorkingArea
+    $s = [Math]::Min($s, [Math]::Min($wa.Width / $dpi / $BaseWidth, $wa.Height / $dpi / $BaseHeight))
     $changed = $s -ne $Scaler.ScaleX
     $Scaler.ScaleX = $s; $Scaler.ScaleY = $s
     $window.Width = $BaseWidth * $s
     $window.Height = $BaseHeight * $s
     if ($changed -or $recenter) {
         # keep the window on its screen
-        $dpi = 1.0; try { $dpi = [System.Windows.Media.VisualTreeHelper]::GetDpi($window).DpiScaleX } catch {}
-        $wa = (Get-CurrentScreen).WorkingArea
         $l = $wa.Left / $dpi; $t = $wa.Top / $dpi; $w = $wa.Width / $dpi; $hh = $wa.Height / $dpi
         if ($recenter) { $window.Left = $l + ($w - $window.Width) / 2; $window.Top = $t + ($hh - $window.Height) / 2 }
         $window.Left = [Math]::Max($l, [Math]::Min($window.Left, $l + $w - $window.Width))
@@ -1808,7 +1909,7 @@ $AddAppRow.Add_Click({
     catch {
         $window.Cursor = $null
         "$(Get-Date -Format s)  $($_.Exception.Message)`r`n$($_.ScriptStackTrace)" | Add-Content (Join-Path $DataDir 'error.log')
-        Show-Dialog 'alert-triangle' '#EF9F27' "Couldn't Load Your Applications" $_.Exception.Message 'OK' $null
+        Show-Dialog 'alert-triangle' $FolioColors.Rust "Couldn't Load Your Applications" $_.Exception.Message 'OK' $null
     }
 })
 $PickBack.Add_Click({ Close-Picker })
@@ -1889,7 +1990,7 @@ $window.Add_ContentRendered({
     Update-AppPaths
     if (-not $script:SessionEnd -and -not (Test-Path $GuardState) -and (Test-WebPolicyActive)) {
         # Safety net: no session is running, but website rules were left behind.
-        Show-Dialog 'alert-triangle' '#EF9F27' 'Websites Are Still Blocked' 'An earlier session left websites blocked. Windows will ask for admin permission to unblock them.' 'Unblock' { [void](Invoke-Guard 'Clear') } 'Not Now' $null
+        Show-Dialog 'alert-triangle' $FolioColors.Rust 'Websites Are Still Blocked' 'An earlier session left websites blocked. Windows will ask for admin permission to unblock them.' 'Unblock' { [void](Invoke-Guard 'Clear') } 'Not Now' $null
     }
 })
 if (-not $Startup) { Show-Main } else { Update-AppPaths }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lockdown</string>
+    <string name="accessibility_description">Closes the applications and websites you lock during a focus session. Lockdown only looks at which app is open and, in browsers, the address bar. Nothing leaves your phone.</string>
+</resources>

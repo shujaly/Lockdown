@@ -1,17 +1,23 @@
 # Lockdown
 
-An app that blocks websites and applications from being accessed for a set duration to force you to lock-in. A compact, always-on-top window for Windows: pick a length, choose what to lock, press Start. Once a session starts, it can't be stopped early.
+Lockdown blocks the apps and websites you choose for a timed focus session on Windows and Android. Its **Folio** interface puts a large serif timer beside a ruled gauge. During a session, the gauge tracks the time remaining and the footer shows when your apps and sites unlock.
 
-| Ready | Websites | Starting | Locked |
-|:---:|:---:|:---:|:---:|
-| <img src="docs/idle.png" width="200" alt="Lockdown ready to start a 45-minute session"> | <img src="docs/websites.png" width="200" alt="Websites tab in Allow Only mode"> | <img src="docs/start.png" width="200" alt="Confirmation before a session starts"> | <img src="docs/locked.png" width="200" alt="A session in progress with the countdown ring"> |
+## Windows
+
+Choose a duration, review what will be blocked, and start the session. You can pin the compact window above your work or follow the countdown from the tray.
+
+| Set up a session | Follow the countdown |
+|:---:|:---:|
+| [<img src="docs/idle.png" width="300" alt="Folio on Windows showing the duration presets and selected applications">](docs/idle.png) | [<img src="docs/locked.png" width="300" alt="Active Windows session with the remaining time, gauge, and unlock time">](docs/locked.png) |
+| **Choose website rules** | **Review before starting** |
+| [<img src="docs/websites.png" width="300" alt="Websites tab with Allow Only selected and the permitted sites listed below">](docs/websites.png) | [<img src="docs/start.png" width="300" alt="Session confirmation showing which applications and websites the session affects">](docs/start.png) |
 
 ## Features
 
 - **Lock applications:** pick from your installed apps or any `.exe`. Locked apps close the moment they open.
 - **Lock websites:** either **Allow Only** (block everything except your list) or **Block List** (block only your list). Type a name like `youtube` and every domain that site uses is covered.
 - **Strict mode:** sessions can't be ended early, and the usual workarounds don't work (see below).
-- **Your own session lengths** (`25`, `45`, `1h30` ...), a smooth countdown ring, a size setting per monitor, and a tray icon while a session runs.
+- **Your own session lengths:** use a preset or enter a duration such as `25`, `45`, or `1h30`. The window remembers its size on each monitor.
 
 ## Getting started
 
@@ -72,6 +78,28 @@ Remove-Item 'HKLM:\SOFTWARE\Policies\Mozilla\Firefox\WebsiteFilter' -Recurse -Fo
 ```
 
 </details>
+
+## Android
+
+On Android 8 or newer, Folio uses the same timer, duration presets, and Applications and Websites tabs. Opening a locked app shows its name and how much time remains.
+
+| Set up a session | Active session | Open a locked app |
+|:---:|:---:|:---:|
+| [<img src="docs/android-ready.png" width="225" alt="Folio on Android with a session length and selected applications">](docs/android-ready.png) | [<img src="docs/android-locked.png" width="225" alt="Android countdown with read-only blocking rules and an unlock time">](docs/android-locked.png) | [<img src="docs/android-blocked.png" width="225" alt="Android showing the notice for a locked application">](docs/android-blocked.png) |
+
+**Build and install.** With the Android SDK installed, run `.\gradlew.bat assembleRelease` on Windows or `./gradlew assembleRelease` on macOS or Linux from the [android](android) folder. Copy `android/app/build/outputs/apk/release/app-release.apk` to your phone and open it.
+
+**Turn it on:** the first time you press Start, Lockdown asks you to turn it on in **Settings → Accessibility**. If Android says it's a *restricted setting*, open **App Info → ⋮ → Allow restricted settings**, then try again.
+
+During a session:
+
+- Locked apps go straight back to the home screen.
+- **Chrome, Edge, Brave, Samsung Internet, Firefox, Opera, Vivaldi, Kiwi and DuckDuckGo** follow your website rules: Lockdown reads the address bar and steps back from blocked sites. Every other browser is locked for the session.
+- Lockdown's App Info, accessibility page and uninstall screen stay shut, so it can't be force-stopped, turned off or removed until time is up.
+- Time is counted on the phone's uptime, so changing the clock doesn't help, and after a restart the session carries on.
+- The home screen, Settings and the Phone app can't be locked.
+
+Android only lets an app do this through its accessibility service, which can still be bypassed with a computer (`adb`) or by booting into safe mode. Browsers built into other apps aren't covered.
 
 ## Credits
 
